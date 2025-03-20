@@ -5,42 +5,80 @@ import { Model } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 import { hashPasswordHelper } from 'src/utils/PasswordHelper';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { CreateAuthDto } from '../auth/dto/create-auth.dto';
+import aqp from 'api-query-params';
 
 @Injectable()
 export class UserService {
-    constructor(
-        @InjectModel(User.name)
-        private readonly userModel: Model<User>,
-    ) {}
+  constructor(
+    @InjectModel(User.name)
+    private readonly userModel: Model<User>,
+  ) {}
 
-    async create(createUserDto: CreateUserDto): Promise<User> {
-        const createdUser = new this.userModel(createUserDto);
-        return createdUser.save();
+  async isEmailExist(email: string) {
+    const user = await this.userModel.exists({ email });
+    if (user) return true;
+    return false;
+  }
+
+  async create(createUserDto: CreateUserDto) {
+    const isEmailExist = await this.isEmailExist(createUserDto.email);
+    if (isEmailExist) {
+      throw new BadRequestException('Email already exist');
+    }
+    const user = await this.userModel.create({
+      ...createUserDto,
+      password: await hashPasswordHelper(createUserDto.password),
+    });
+    return {
+      _id: user._id,
+    };
+  }
+
+  async findAll(query: string, currentPage: number = 1, pageSize: number = 10) {
+    const { filter, sort } = aqp(query);
+    if (filter.currentPage) delete filter.currentPage;
+    if (filter.pageSize) delete filter.pageSize;
+
+    if (!currentPage) currentPage = 1;
+    if (!pageSize) pageSize = 10;
+
+    if (currentPage < 1 || pageSize < 1) {
+      throw new BadRequestException('Invalid query params');
+    }
+    if (
+      !Number.isInteger(currentPage) ||
+      !Number.isInteger(pageSize) ||
+      pageSize < 1 ||
+      currentPage < 1
+    ) {
+      throw new BadRequestException('Invalid query params');
     }
 
-    async findAll(): Promise<User[]> {
-        return this.userModel.find().exec();
-    }
+    const totalItems = (await this.userModel.find(filter)).length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const offset = (currentPage - 1) * pageSize;
 
-    async findOne(id: string): Promise<User | null> {
-        return this.userModel.findById(id).exec();
-    }
+    const results = await this.userModel
+      .find(filter)
+      .limit(pageSize)
+      .skip(offset)
+      .select('-password')
+      .sort(sort as any);
 
-    async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
-        return this.userModel.findByIdAndUpdate(id, updateUserDto, { new: true }).exec();
-    }
+    return { results, totalPages };
+  }
 
-    async remove(id: string): Promise<User | null> {
-        return this.userModel.findByIdAndDelete(id).exec();
-    }
+  async findOne(id: string): Promise<User | null> {
+    return this.userModel.findById(id).exec();
+  }
 
-    async handleRegister(registerDto: CreateAuthDto): Promise<User> {
-        const isEmailExist = await this.userModel.findOne({ email: registerDto.email });
-        if (isEmailExist) {
-            throw new BadRequestException('Email đã tồn tại');
-        }
-        const hashedPassword = await hashPasswordHelper(registerDto.password);
-        return this.userModel.create({ ...registerDto, password: hashedPassword });
-    }
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
+    return this.userModel
+      .findByIdAndUpdate(id, updateUserDto, { new: true })
+      .exec();
+  }
+
+  async remove(id: string): Promise<User | null> {
+    return this.userModel.findByIdAndDelete(id).exec();
+  }
 }
