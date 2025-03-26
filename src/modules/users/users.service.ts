@@ -8,7 +8,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import aqp from 'api-query-params';
 
 @Injectable()
-export class UserService {
+export class UsersService {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
@@ -45,14 +45,6 @@ export class UserService {
     if (currentPage < 1 || pageSize < 1) {
       throw new BadRequestException('Invalid query params');
     }
-    if (
-      !Number.isInteger(currentPage) ||
-      !Number.isInteger(pageSize) ||
-      pageSize < 1 ||
-      currentPage < 1
-    ) {
-      throw new BadRequestException('Invalid query params');
-    }
 
     const totalItems = (await this.userModel.find(filter)).length;
     const totalPages = Math.ceil(totalItems / pageSize);
@@ -70,6 +62,10 @@ export class UserService {
 
   async findOne(id: string): Promise<User | null> {
     return this.userModel.findById(id).exec();
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userModel.findOne({ email }).exec();
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
