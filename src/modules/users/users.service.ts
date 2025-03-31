@@ -6,12 +6,19 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { hashPasswordHelper } from 'src/utils/PasswordHelper';
 import { UpdateUserDto } from './dto/update-user.dto';
 import aqp from 'api-query-params';
+import { CreateAuthDto } from '../auth/dto/create-auth.dto';
+import * as dayjs from 'dayjs';
+import { v4 as uuidv4 } from 'uuid';
+import { MailerService } from '@nestjs-modules/mailer';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
+    private readonly mailerService: MailerService,
+    private readonly configService: ConfigService,
   ) {}
 
   async isEmailExist(email: string) {
@@ -76,5 +83,43 @@ export class UsersService {
 
   async remove(id: string): Promise<User | null> {
     return this.userModel.findByIdAndDelete(id).exec();
+  }
+
+  async register(registerDto: CreateAuthDto) {
+    const { email, password } = registerDto;
+    const isEmailExist = await this.isEmailExist(registerDto.email);
+    if (isEmailExist) {
+      throw new BadRequestException('Email already exist');
+    }
+    const hashedPassword = await hashPasswordHelper(registerDto.password);
+    const user = await this.userModel.create({
+      email,
+      password: hashedPassword,
+      isActive: false,
+      codeId: uuidv4(),
+      // codeExpired: dayjs().add(1, 'day'),
+      codeExpired: dayjs().add(
+        this.configService.get<number>('CODE_EXPIRED_TIME', 1),
+        this.configService.get<string>(
+          'CODE_EXPIRED_UNIT',
+          'day',
+        ) as dayjs.ManipulateType,
+      ),
+    });
+
+    this.mailerService.sendMail({
+      // to: email,
+      to: 'hoanghuy232003@gmail.com',
+      subject: 'Activate your account',
+      template: 'register',
+      context: {
+        name: user.email,
+        activationCode: user.codeId,
+      },
+    });
+
+    return {
+      _id: user._id,
+    };
   }
 }

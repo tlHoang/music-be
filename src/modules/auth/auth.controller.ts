@@ -13,7 +13,7 @@ import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { LocalAuthGuard } from './passport/local-auth.guard';
 import { ApiBody, ApiExcludeEndpoint } from '@nestjs/swagger';
-import { Public } from '@/common/public.decorator';
+import { Public } from '@/common/decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -27,6 +27,12 @@ export class AuthController {
   @Public()
   async login(@Request() req) {
     return this.authService.login(req.user);
+  }
+
+  @Post('/register')
+  @Public()
+  async register(@Body() registerDto: CreateAuthDto) {
+    return this.authService.register(registerDto);
   }
 
   @Get('/profile')

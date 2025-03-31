@@ -35,7 +35,7 @@ export class User extends Document {
   codeId: string;
 
   @Prop()
-  coeExpired: Date;
+  codeExpired: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

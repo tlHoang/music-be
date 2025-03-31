@@ -1,5 +1,5 @@
 // import { NeedAuth } from '@/common/api-public.decorator';
-import { IS_PUBLIC_KEY } from '@/common/public.decorator';
+import { IS_PUBLIC_KEY } from '@/common/decorators/public.decorator';
 import {
   ExecutionContext,
   Injectable,
