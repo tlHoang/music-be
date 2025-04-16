@@ -20,6 +20,10 @@ export class CreateUserDto {
   @IsString()
   password: string;
 
+  @IsNotEmpty()
+  @IsString()
+  username: string;
+
   @IsOptional()
   @IsPhoneNumber('VN')
   phone?: string;
@@ -39,4 +43,12 @@ export class CreateUserDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  profilePicture?: string;
+
+  @IsOptional()
+  @IsString()
+  bio?: string;
 }

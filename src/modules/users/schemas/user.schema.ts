@@ -36,6 +36,21 @@ export class User extends Document {
 
   @Prop()
   codeExpired: Date;
+
+  @Prop({ required: true, unique: true })
+  username: string;
+
+  @Prop({ required: false })
+  profilePicture: string;
+
+  @Prop({ required: false })
+  bio: string;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Song' }] })
+  songs: Types.ObjectId[];
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Playlist' }] })
+  playlists: Types.ObjectId[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

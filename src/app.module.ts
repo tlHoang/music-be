@@ -11,6 +11,13 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { SongsModule } from './modules/songs/songs.module';
+import { PlaylistsModule } from './modules/playlists/playlists.module';
+import { GenresModule } from './modules/genres/genres.module';
+import { LikesModule } from './modules/likes/likes.module';
+import { CommentsModule } from './modules/comments/comments.module';
+import { FollowersModule } from './modules/followers/followers.module';
+// Import other modules here...
 
 @Module({
   imports: [
@@ -55,6 +62,13 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       }),
       inject: [ConfigService],
     }),
+    SongsModule,
+    PlaylistsModule,
+    GenresModule,
+    LikesModule,
+    CommentsModule,
+    FollowersModule,
+    // Add other modules here...
   ],
   controllers: [AppController],
   providers: [

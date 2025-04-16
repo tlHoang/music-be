@@ -1,4 +1,10 @@
-import { IsEmail, IsNotEmpty, IsStrongPassword } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsStrongPassword,
+  IsString,
+  IsOptional,
+} from 'class-validator';
 
 export class CreateAuthDto {
   @IsNotEmpty()
@@ -6,6 +12,27 @@ export class CreateAuthDto {
   email: string;
 
   @IsNotEmpty()
+  @IsString()
+  username: string;
+
+  @IsNotEmpty()
   // @IsStrongPassword()
   password: string;
+}
+
+export class CodeActivateDto {
+  @IsNotEmpty()
+  _id: string;
+
+  @IsNotEmpty()
+  code: string;
+}
+
+export class ResendCodeDto {
+  @IsOptional()
+  _id?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 }

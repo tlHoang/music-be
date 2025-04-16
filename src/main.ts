@@ -38,6 +38,14 @@ async function bootstrap() {
   app.use(new RequestLoggerMiddleware().use);
 
   const configService = app.get(ConfigService);
+
+  app.enableCors({
+    origins: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    preflightContinue: false,
+    creadentials: true,
+  });
+
   await app.listen(configService.get<number>('PORT') || 3000);
 }
 bootstrap();

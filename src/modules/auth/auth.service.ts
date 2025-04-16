@@ -3,7 +3,11 @@ import { UsersService } from '@/modules/users/users.service';
 import { comparePasswordHelper } from '@/utils/PasswordHelper';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../users/schemas/user.schema';
-import { CreateAuthDto } from './dto/create-auth.dto';
+import {
+  CodeActivateDto,
+  CreateAuthDto,
+  ResendCodeDto,
+} from './dto/create-auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -33,5 +37,13 @@ export class AuthService {
 
   async register(registerDto: CreateAuthDto) {
     return this.usersService.register(registerDto);
+  }
+
+  checkCode(codeActivateDto: CodeActivateDto) {
+    return this.usersService.handleActive(codeActivateDto);
+  }
+
+  resendCode(resendCodeDto: ResendCodeDto) {
+    return this.usersService.resendCode(resendCodeDto);
   }
 }
