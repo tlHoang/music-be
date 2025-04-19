@@ -6,7 +6,7 @@
     "typeCheck": true,
     "deleteOutDir": true,
     "plugins": ["@nestjs/swagger"],
-    "assets": ["mail/templates/**/*"],
+    "assets": ["mail/templates/**/*", "firebase-account-service.json"],
     "watchAssets": true
   }
 }

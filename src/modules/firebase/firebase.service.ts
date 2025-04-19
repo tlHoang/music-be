@@ -1,0 +1,78 @@
+import { Injectable } from '@nestjs/common';
+import * as admin from 'firebase-admin';
+import { v4 as uuidv4 } from 'uuid';
+import * as path from 'path';
+
+@Injectable()
+export class FirebaseService {
+  constructor() {
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          type: 'service_account',
+          project_id: 'smarthome1-6a97d',
+          private_key_id: '92060ea3bfb904c76cc3a5c7893e4fa363fe263e',
+          private_key:
+            '-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDIOSrRPaN2TCjv\npvgboD4fmiMU2IhIJrcot8LcYcLDVUPTd/eMWJiwi97gbDKEAAK278ABLQRqorK/\nCDDTEJ8CD/GTT1PZ8pDxAjjMnwPtELN/qQXKWpsyLEF5AbHjtXE3ezWcRGX36TXT\nmjJWu+PiVmy5BsKNs7ErD5cg++sVfuPk+7kBTFvCevOuhj1DQw2gUDnj3VEKiA8d\no1rYY3nn7bvaW9U3dwfDQAFRHUOKHBNKhQBCKwV1oZphfLDPd8uCVTyIKilqXVKS\n/Han/n9J5EZOrTN+I353rb4+aPpX4g1UjIN2YA1eYaq5eaeOz5Zp9pf93BVF3BAy\nNWBF1oNjAgMBAAECggEAVoCsSP4SUxeQUAmZA4Z1kH2tTmJGbrWbSBIsM75gwLdj\nuEcKQi48uXmUbu0P3guLILHwCBIE6HUmOHY3cdiqed+dhQEuvuiXSiillXHV5mPi\nyPKjN8txZXnNR5Q94J0RLuEiRkMesr6krKjfuq0uRSkFi+Kpx0Ks9mej6XItHHmT\nw7C4yq9OuJ0vG+7Zabt9CrfCDz3ncE48w1UvNU6slIFezyZLdWEOkjMirZ+k5GYU\nOKHDNUZCBMwGiC4tCFlVJey2GVtT2yEIBF0DBCjlv5tFW7WNI/KLUbd8J5tPTins\nhVbbQJE9ApzUXEer5SV/Qr9oqS6aOzbllvPTi2Z0UQKBgQDUjm4QyOY4GyCs4TGk\nWeLxT6xJa1mjDPAC8aZMQDuuqII8sT2yx4In5zstDci/w7zWMirQF0xousEOPrgh\nWScNLmMOqammZ5ZSN2bgmjitrVg+GeLWWMmx8Uq195oYsNzAuIL3MGUJPmKCBJhP\nPjkzIrV3r9ZVmNBioH2ZIzfYnQKBgQDxJW+LcAoMXRZASDjvtFR+jsQesyO5uXp9\niZ9UC+MiUw70WfMguO9ASMpSrIP+7/Q34X0k1pJhiPfFnpyDinA6+vFwBBC/kQJ3\nPYoOCqCIWl9ShKeQisfgV2sP87QuzIga3ruWS+hEl4tdf6ly9i2l1uGLkT5Mok/v\nDIGY0FML/wKBgASH6La44ZdulJq6zikXtWu5bA3AmQ+NtgwKBKZ5dAw8EVKj4JHQ\nCOk615sVQSM9U+go95qp9HoDCRx5n8kuMlPomjn0yeX/LUghYDMHdo/VMx1XxesV\nx27gmtwYJBPEqV/+TuRgBrdUuhrVaD3AMM3zPnUHrYTzlfWUQDkkdAtNAoGBAJ2G\nYd5JWxcGe/GT/DWBrCxcIHsZdH3vTrfQ/daOSVpzvXIbjDnU9N0eb6Qf873Gi9cx\nImm9DTRPn+NlIELBXVz57lvJHBO3q0+vUI6pnIJV3qzt4PQH5FeFY3exMAPeMg6z\nbwDYJysff7edHFjvvZP20bE1OOggo2y507K6a3WLAoGAKJa6oNtQ5mklvclUbB76\nM8gwBy6vV5DOoCjtKa39PmSXyxrLa56y/+jrW76D/nBdiVW3kbjbCBEWE1icRH/Z\nyjnUXFyOtGQh54iO/3g/WWp25cIcsVQT83U9lnDO9dDtRMzJyw0/0SSdlZEEpq0W\nb35bkFHZtga/WALjLbfQZyQ=\n-----END PRIVATE KEY-----\n',
+          client_email:
+            'firebase-adminsdk-3cro0@smarthome1-6a97d.iam.gserviceaccount.com',
+          client_id: '105126665181226758923',
+          auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+          token_uri: 'https://oauth2.googleapis.com/token',
+          auth_provider_x509_cert_url:
+            'https://www.googleapis.com/oauth2/v1/certs',
+          client_x509_cert_url:
+            'https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-3cro0%40smarthome1-6a97d.iam.gserviceaccount.com',
+          universe_domain: 'googleapis.com',
+        } as admin.ServiceAccount),
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+      });
+    }
+  }
+
+  async uploadFile(file: Express.Multer.File): Promise<string> {
+    const bucket = admin.storage().bucket();
+    const fileName = `music/${uuidv4()}${path.extname(file.originalname)}`;
+    const fileUpload = bucket.file(fileName);
+
+    await fileUpload.save(file.buffer, {
+      metadata: {
+        contentType: file.mimetype,
+      },
+    });
+
+    return fileUpload.publicUrl();
+  }
+
+  async getSignedUrl(fileUrl: string): Promise<string> {
+    try {
+      // Extract the file path from the public URL
+      // URLs from Firebase look like: https://storage.googleapis.com/BUCKET_NAME/FILE_PATH
+      const bucket = admin.storage().bucket();
+      const urlObj = new URL(fileUrl);
+
+      // The pathname starts with '/', so we remove the first character
+      // Then we split by '/' and remove the first segment (bucket name)
+      const pathSegments = urlObj.pathname.substring(1).split('/');
+
+      // If the URL format is different, this might need adjustment
+      // For Firebase Storage, we usually get: /BUCKET/PATH_TO_FILE
+      pathSegments.shift(); // Remove bucket name from path
+
+      const filePath = pathSegments.join('/');
+      const file = bucket.file(filePath);
+
+      // Generate a signed URL that expires in 1 hour
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 3600 * 1000, // 1 hour
+      });
+
+      return signedUrl;
+    } catch (error) {
+      console.error('Error generating signed URL:', error);
+      // If we can't generate a signed URL, return the original URL
+      return fileUrl;
+    }
+  }
+}

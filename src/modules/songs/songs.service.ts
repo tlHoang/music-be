@@ -5,15 +5,24 @@ import { Song } from './schemas/song.schema';
 import { CreateSongDto } from './dto/create-song.dto';
 import { UpdateSongDto } from './dto/update-song.dto';
 import { Genre } from '@/modules/genres/schemas/genre.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class SongsService {
   constructor(
     @InjectModel(Song.name) private readonly songModel: Model<Song>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>, // Inject User model
   ) {}
 
-  create(createSongDto: CreateSongDto) {
-    return this.songModel.create(createSongDto);
+  async create(createSongDto: CreateSongDto) {
+    const song = await this.songModel.create(createSongDto);
+
+    // Update the user's songs field
+    await this.userModel.findByIdAndUpdate(song.userId, {
+      $push: { songs: song._id },
+    });
+
+    return song;
   }
 
   findAll() {
@@ -32,6 +41,10 @@ export class SongsService {
 
   remove(id: string) {
     return this.songModel.findByIdAndDelete(id).exec();
+  }
+
+  async findSongsByUser(userId: string) {
+    return this.songModel.find({ userId });
   }
 
   // async findGenresBySong(songId: string): Promise<Genre[]> {

@@ -18,10 +18,9 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     },
-    "esModuleInterop": true,
-  }
+    "esModuleInterop": true
+  },
+  "include": ["src/**/*", "firebase-service-account.json"]
 }

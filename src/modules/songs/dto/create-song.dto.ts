@@ -11,19 +11,19 @@ export class CreateSongDto {
   @IsString()
   title: string;
 
-  @IsOptional()
-  duration?: number;
+  // @IsOptional()
+  // duration?: number;
 
-  @IsOptional()
-  uploadDate?: Date;
+  // @IsOptional()
+  // uploadDate?: Date;
 
   @IsOptional()
   @IsString()
   lyrics?: string;
 
-  @IsNotEmpty()
-  @IsUrl()
-  audioUrl: string;
+  // @IsOptional()
+  // @IsUrl()
+  // audioUrl?: string;
 
   @IsOptional()
   @IsUrl()
@@ -33,6 +33,6 @@ export class CreateSongDto {
   @IsEnum(['PRIVATE', 'PUBLIC'])
   visibility?: string;
 
-  @IsNotEmpty()
-  userId: string;
+  // @IsNotEmpty()
+  // userId: string;
 }
