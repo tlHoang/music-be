@@ -19,6 +19,14 @@ export class CommentsService {
     return this.commentModel.find().exec();
   }
 
+  async findBySongId(songId: string) {
+    return this.commentModel
+      .find({ songId })
+      .populate('userId', 'name username email profilePicture _id')
+      .sort({ createdAt: -1 }) // Newest comments first
+      .exec();
+  }
+
   findOne(id: string) {
     return this.commentModel.findById(id).exec();
   }

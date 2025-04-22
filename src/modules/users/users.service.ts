@@ -5,6 +5,7 @@ import { Model, isValidObjectId, Types } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 import { hashPasswordHelper } from 'src/utils/PasswordHelper';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { JwtService } from '@nestjs/jwt';
 import aqp from 'api-query-params';
 import {
   CodeActivateDto,
@@ -15,14 +16,21 @@ import dayjs from 'dayjs';
 import { v4 as uuidv4 } from 'uuid';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
+import { Follower } from '../followers/schemas/follower.schema';
+import { Song } from '../songs/schemas/song.schema';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
+    @InjectModel(Follower.name)
+    private readonly followerModel: Model<Follower>,
+    @InjectModel(Song.name)
+    private readonly songModel: Model<Song>,
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
   ) {}
 
   async isEmailExist(email: string) {
@@ -239,12 +247,114 @@ export class UsersService {
     return { _id: userRecord._id, email: userRecord.email };
   }
 
-  async getUserProfile(id: string) {
-    return this.userModel
+  decodeToken(token: string) {
+    try {
+      return this.jwtService.decode(token);
+    } catch (error) {
+      console.error('Error decoding token:', error);
+      return null;
+    }
+  }
+
+  async discoverUsers(currentUserId: string | null) {
+    // Find users with the most followers or most tracks
+    // Exclude the current user from the results
+    const query = currentUserId ? { _id: { $ne: currentUserId } } : {};
+
+    const users = await this.userModel
+      .find(query)
+      .select('_id name email avatar')
+      .limit(20)
+      .lean();
+
+    // For each user, get their followers count and tracks count
+    const enhancedUsers = await Promise.all(
+      users.map(async (user) => {
+        // Get followers count - make sure we're using the correct ID field
+        const followersCount = await this.followerModel.countDocuments({
+          followingId: user._id.toString(),
+        });
+
+        // Get tracks count - ensure we're using the correct field name in the Song schema
+        const tracksCount = await this.songModel.countDocuments({
+          userId: user._id.toString(),
+        });
+
+        console.log(
+          `User ${user._id}: followersCount=${followersCount}, tracksCount=${tracksCount}`,
+        );
+
+        // Check if current user is following this user
+        let isFollowing = false;
+        if (currentUserId) {
+          const followCheck = await this.followerModel.findOne({
+            followerId: currentUserId,
+            followingId: user._id.toString(), // Convert to string to match the database storage format
+          });
+          isFollowing = !!followCheck;
+          console.log(
+            `User ${user._id}: isFollowing=${isFollowing}, followCheck=${!!followCheck}`,
+          );
+        }
+
+        return {
+          ...user,
+          followersCount,
+          tracksCount,
+          isFollowing,
+        };
+      }),
+    );
+
+    // Sort by followers count to show most popular first
+    enhancedUsers.sort((a, b) => b.followersCount - a.followersCount);
+
+    return enhancedUsers;
+  }
+
+  async getUserProfile(id: string, currentUserId: string | null = null) {
+    const user = await this.userModel
       .findById(id)
       .select(
         '-password -codeId -codeExpired -createdAt -updatedAt -accountType -__v',
-      ); // Exclude sensitive fields like password, codeId, and codeExpired
+      )
+      .lean();
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Get followers count
+    const followersCount = await this.followerModel.countDocuments({
+      followingId: id.toString(),
+    });
+
+    // Get following count
+    const followingCount = await this.followerModel.countDocuments({
+      followerId: id.toString(),
+    });
+
+    // Check if current user is following this profile
+    let isFollowing = false;
+    if (currentUserId && currentUserId !== id) {
+      const followCheck = await this.followerModel.findOne({
+        followerId: currentUserId.toString(),
+        followingId: id.toString(),
+      });
+      isFollowing = !!followCheck;
+      console.log(
+        `Profile ${id}: isFollowing=${isFollowing}, followCheck=${!!followCheck}`,
+      );
+    }
+
+    return {
+      data: {
+        ...user,
+        followersCount,
+        followingCount,
+        isFollowing,
+      },
+    };
   }
 
   async getUserSongsAndPlaylists(userId: string) {

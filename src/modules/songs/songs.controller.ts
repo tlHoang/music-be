@@ -22,12 +22,9 @@ import { IAudioMetadata } from 'music-metadata';
 import * as ffmpeg from 'fluent-ffmpeg';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { ApiTags } from '@nestjs/swagger';
 
-// (async () => {
-//   // Dynamically loads the ESM module in a CommonJS project
-//   const mm = await loadEsm<typeof import('music-metadata')>('music-metadata');
-// })();
-
+@ApiTags('songs')
 @Controller('songs')
 export class SongsController {
   constructor(
@@ -57,6 +54,37 @@ export class SongsController {
 
     // Fetch songs for the user
     return this.songsService.findSongsByUser(userId);
+  }
+
+  @Get('feed')
+  async getFeed(@Req() request: Request) {
+    // const userId = request.user?._id;
+    const userId = this.jwtService.decode(
+      request.headers.authorization!.split(' ')[1],
+    ).sub;
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+    return this.songsService.getFeed(userId);
+  }
+
+  @Get('user/:userId')
+  async getUserPublicSongs(
+    @Param('userId') userId: string,
+    @Req() request: Request,
+  ) {
+    // Extract the authenticated user's ID from the JWT token if available
+    let currentUserId = null;
+    if (request.headers.authorization) {
+      const token = request.headers.authorization.split(' ')[1];
+      const decoded = this.jwtService.decode(token);
+      currentUserId = decoded?.sub;
+    }
+
+    return this.songsService.findPublicSongsByUser(
+      userId,
+      currentUserId === userId,
+    );
   }
 
   @Get(':id')

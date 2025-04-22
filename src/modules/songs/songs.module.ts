@@ -6,12 +6,14 @@ import { Song, SongSchema } from './schemas/song.schema';
 import { FirebaseModule } from '../firebase/firebase.module';
 import { JwtModule } from '@nestjs/jwt';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { Follower, FollowerSchema } from '../followers/schemas/follower.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Song.name, schema: SongSchema },
-      { name: User.name, schema: UserSchema }, // Add User model
+      { name: User.name, schema: UserSchema },
+      { name: Follower.name, schema: FollowerSchema }, // Add Follower model
     ]),
     FirebaseModule,
     JwtModule.register({}), // Register JwtModule to provide JwtService
