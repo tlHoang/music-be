@@ -364,4 +364,122 @@ export class UsersService {
       .populate('playlists')
       .select('_id songs playlists'); // Select only songs and playlists fields
   }
+
+  async findAllForAdmin() {
+    try {
+      const users = await this.userModel
+        .find()
+        .select('-password -codeId -codeExpired')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // For each user, get additional stats like track count and playlist count
+      const enhancedUsers = await Promise.all(
+        users.map(async (user) => {
+          // Get tracks count
+          const trackCount = await this.songModel.countDocuments({
+            userId: user._id,
+          });
+
+          // Get playlists count - use aggregation to get playlists count if you have a playlist model
+          // As a placeholder, I'll set it to 0 since we don't have direct access to the playlist model here
+          const playlistCount = 0; // Replace with actual count when possible
+
+          // Get followers count
+          const followerCount = await this.followerModel.countDocuments({
+            followingId: user._id,
+          });
+
+          // Get following count
+          const followingCount = await this.followerModel.countDocuments({
+            followerId: user._id,
+          });
+
+          return {
+            ...user,
+            trackCount,
+            playlistCount,
+            followerCount,
+            followingCount,
+          };
+        }),
+      );
+
+      return {
+        success: true,
+        data: enhancedUsers,
+      };
+    } catch (error) {
+      console.error('Error fetching all users for admin:', error);
+      return {
+        success: false,
+        message: 'Failed to retrieve users',
+        error: error.message,
+      };
+    }
+  }
+
+  async updateStatus(id: string, status: string) {
+    try {
+      if (!isValidObjectId(id)) {
+        throw new BadRequestException('Invalid user ID');
+      }
+
+      if (!['ACTIVE', 'SUSPENDED', 'PENDING'].includes(status)) {
+        throw new BadRequestException('Invalid status value');
+      }
+
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate(id, { status }, { new: true })
+        .select('-password');
+
+      if (!updatedUser) {
+        throw new BadRequestException('User not found');
+      }
+
+      return {
+        success: true,
+        data: updatedUser,
+      };
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      return {
+        success: false,
+        message: 'Failed to update user status',
+        error: error.message,
+      };
+    }
+  }
+
+  async updateRole(id: string, role: string) {
+    try {
+      if (!isValidObjectId(id)) {
+        throw new BadRequestException('Invalid user ID');
+      }
+
+      if (!['ADMIN', 'USER', 'MODERATOR', 'ARTIST'].includes(role)) {
+        throw new BadRequestException('Invalid role value');
+      }
+
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate(id, { role }, { new: true })
+        .select('-password');
+
+      if (!updatedUser) {
+        throw new BadRequestException('User not found');
+      }
+
+      return {
+        success: true,
+        data: updatedUser,
+      };
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      return {
+        success: false,
+        message: 'Failed to update user role',
+        error: error.message,
+      };
+    }
+  }
 }

@@ -16,6 +16,16 @@ export class Playlist {
 
   @Prop({ default: 'PUBLIC', enum: ['PUBLIC', 'PRIVATE'] })
   visibility: string;
+
+  @Prop({ default: false })
+  isFeatured: boolean;
+
+  // Timestamps added by the schema options, but need to be declared for TypeScript
+  @Prop()
+  createdAt: Date;
+
+  @Prop()
+  updatedAt: Date;
 }
 
 export const PlaylistSchema = SchemaFactory.createForClass(Playlist);

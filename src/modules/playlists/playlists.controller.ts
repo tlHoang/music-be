@@ -6,11 +6,16 @@ import {
   Param,
   Patch,
   Delete,
+  UseGuards,
 } from '@nestjs/common';
 import { PlaylistsService } from './playlists.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
+import { RolesGuard } from '@/common/guards/roles.guard';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('playlists')
 @Controller('playlists')
 export class PlaylistsController {
   constructor(private readonly playlistsService: PlaylistsService) {}
@@ -25,6 +30,13 @@ export class PlaylistsController {
     return this.playlistsService.findAll();
   }
 
+  @Get('all')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  findAllForAdmin() {
+    return this.playlistsService.findAllForAdmin();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.playlistsService.findOne(id);
@@ -36,6 +48,13 @@ export class PlaylistsController {
     @Body() updatePlaylistDto: UpdatePlaylistDto,
   ) {
     return this.playlistsService.update(id, updatePlaylistDto);
+  }
+
+  @Patch(':id/featured')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  setFeatured(@Param('id') id: string, @Body() body: { isFeatured: boolean }) {
+    return this.playlistsService.setFeatured(id, body.isFeatured);
   }
 
   @Delete(':id')

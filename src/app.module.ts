@@ -17,6 +17,7 @@ import { GenresModule } from './modules/genres/genres.module';
 import { LikesModule } from './modules/likes/likes.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { FollowersModule } from './modules/followers/followers.module';
+import { AdminModule } from './modules/admin/admin.module';
 // Import other modules here...
 
 @Module({
@@ -68,6 +69,7 @@ import { FollowersModule } from './modules/followers/followers.module';
     LikesModule,
     CommentsModule,
     FollowersModule,
+    AdminModule,
     // Add other modules here...
   ],
   controllers: [AppController],

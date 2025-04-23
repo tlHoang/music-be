@@ -111,4 +111,64 @@ export class SongsService {
       };
     });
   }
+
+  async findAllForAdmin() {
+    try {
+      const songs = await this.songModel
+        .find()
+        .sort({ uploadDate: -1 })
+        .populate('userId', '_id name username email profilePicture')
+        .lean();
+
+      // Add additional statistics or information needed for admin
+      const enhancedSongs = songs.map((song) => {
+        return {
+          ...song,
+          // You can add additional computed properties here if needed
+        };
+      });
+
+      return {
+        success: true,
+        data: enhancedSongs,
+      };
+    } catch (error) {
+      console.error('Error fetching all songs for admin:', error);
+      return {
+        success: false,
+        message: 'Failed to retrieve songs',
+        error: error.message,
+      };
+    }
+  }
+
+  async flagSong(id: string, isFlagged: boolean) {
+    try {
+      if (!Types.ObjectId.isValid(id)) {
+        throw new NotFoundException('Invalid song ID format');
+      }
+
+      const updatedSong = await this.songModel.findByIdAndUpdate(
+        id,
+        { isFlagged },
+        { new: true },
+      );
+
+      if (!updatedSong) {
+        throw new NotFoundException(`Song with ID ${id} not found`);
+      }
+
+      return {
+        success: true,
+        data: updatedSong,
+      };
+    } catch (error) {
+      console.error(`Error updating flag status for song ${id}:`, error);
+      return {
+        success: false,
+        message: 'Failed to update song flag status',
+        error: error.message,
+      };
+    }
+  }
 }

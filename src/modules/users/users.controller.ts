@@ -18,6 +18,8 @@ import { ApiTags } from '@nestjs/swagger';
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { Public } from '@/common/decorators/public.decorator';
+import { RolesGuard } from '@/common/guards/roles.guard';
+import { Roles } from '@/common/decorators/roles.decorator';
 
 @ApiTags('users')
 @Controller('users')
@@ -36,6 +38,13 @@ export class UsersController {
     @Query('pageSize', ParseIntPipe) pageSize: number,
   ) {
     return this.userService.findAll(query, currentPage, pageSize);
+  }
+
+  @Get('all')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async findAllForAdmin() {
+    return this.userService.findAllForAdmin();
   }
 
   @Get('discover')
@@ -81,6 +90,23 @@ export class UsersController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.userService.update(id, updateUserDto);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string },
+  ) {
+    return this.userService.updateStatus(id, body.status);
+  }
+
+  @Patch(':id/role')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async updateRole(@Param('id') id: string, @Body() body: { role: string }) {
+    return this.userService.updateRole(id, body.role);
   }
 
   @Delete(':id')

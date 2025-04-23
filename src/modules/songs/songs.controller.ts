@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SongsService } from './songs.service';
@@ -23,6 +24,8 @@ import * as ffmpeg from 'fluent-ffmpeg';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { ApiTags } from '@nestjs/swagger';
+import { RolesGuard } from '@/common/guards/roles.guard';
+import { Roles } from '@/common/decorators/roles.decorator';
 
 @ApiTags('songs')
 @Controller('songs')
@@ -41,6 +44,13 @@ export class SongsController {
   @Get()
   findAll() {
     return this.songsService.findAll();
+  }
+
+  @Get('all')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  findAllForAdmin() {
+    return this.songsService.findAllForAdmin();
   }
 
   // Important: Keep specific routes before wildcard routes
@@ -158,6 +168,13 @@ export class SongsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateSongDto: UpdateSongDto) {
     return this.songsService.update(id, updateSongDto);
+  }
+
+  @Patch(':id/flag')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  flagSong(@Param('id') id: string, @Body() body: { isFlagged: boolean }) {
+    return this.songsService.flagSong(id, body.isFlagged);
   }
 
   @Delete(':id')

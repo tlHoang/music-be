@@ -38,6 +38,16 @@ export class Song {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
+  @Prop({ default: false })
+  isFlagged: boolean;
+
+  // Timestamps added by the schema options, but need to be declared for TypeScript
+  @Prop()
+  createdAt: Date;
+
+  @Prop()
+  updatedAt: Date;
+
   // Removed redundant genres field
   // @Prop({ type: [{ type: Types.ObjectId, ref: 'Genre' }] })
   // genres: Types.ObjectId[]; // Many-to-many relationship with Genre

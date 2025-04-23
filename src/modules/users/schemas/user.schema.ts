@@ -51,6 +51,13 @@ export class User extends Document {
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Playlist' }] })
   playlists: Types.ObjectId[];
+
+  // Timestamps added by the schema options, but need to be declared for TypeScript
+  @Prop()
+  createdAt: Date;
+
+  @Prop()
+  updatedAt: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
