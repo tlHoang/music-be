@@ -171,4 +171,26 @@ export class SongsService {
       };
     }
   }
+
+  async incrementPlays(id: string) {
+    try {
+      const song = await this.songModel.findByIdAndUpdate(
+        id,
+        { $inc: { plays: 1 } },
+        { new: true },
+      );
+
+      return {
+        success: true,
+        data: song,
+      };
+    } catch (error) {
+      console.error('Error incrementing play count:', error);
+      return {
+        success: false,
+        message: 'Failed to increment play count',
+        error: error.message,
+      };
+    }
+  }
 }

@@ -187,4 +187,116 @@ export class AdminService {
       };
     }
   }
+
+  async getActivityPaginated(
+    page: number,
+    limit: number,
+    activityType?: string,
+  ) {
+    try {
+      const skip = (page - 1) * limit;
+      const recentLimit = limit;
+
+      // Create queries with type filtering if provided
+      const userQuery = {};
+      const songQuery = {};
+      const playlistQuery = {};
+
+      // Get recent user registrations
+      const recentUsers =
+        activityType && activityType !== 'USER_REGISTERED'
+          ? []
+          : await this.userModel
+              .find(userQuery)
+              .select('_id username email name createdAt profilePicture')
+              .sort({ createdAt: -1 })
+              .lean();
+
+      // Get recent song uploads
+      const recentSongs =
+        activityType && activityType !== 'TRACK_UPLOADED'
+          ? []
+          : await this.songModel
+              .find(songQuery)
+              .select('_id title uploadDate userId visibility plays')
+              .populate('userId', '_id name email profilePicture')
+              .sort({ uploadDate: -1 })
+              .lean();
+
+      // Get recent playlist creations
+      const recentPlaylists =
+        activityType && activityType !== 'PLAYLIST_CREATED'
+          ? []
+          : await this.playlistModel
+              .find(playlistQuery)
+              .select('_id name createdAt userId visibility')
+              .populate('userId', '_id name email profilePicture')
+              .sort({ createdAt: -1 })
+              .lean();
+
+      // Format the data for the frontend
+      const allActivities = [
+        ...recentUsers.map((user) => ({
+          _id: `user_${user._id}`,
+          type: 'USER_REGISTERED',
+          message: 'registered a new account',
+          timestamp: user.createdAt,
+          userId: {
+            _id: user._id,
+            name: user.name || user.username,
+            profilePicture: user.profilePicture,
+          },
+        })),
+        ...recentSongs.map((song) => ({
+          _id: `song_${song._id}`,
+          type: 'TRACK_UPLOADED',
+          message: `uploaded a new track "${song.title}"`,
+          timestamp: song.uploadDate,
+          userId: song.userId,
+          targetId: song._id,
+          targetType: 'TRACK',
+          targetName: song.title,
+        })),
+        ...recentPlaylists.map((playlist) => ({
+          _id: `playlist_${playlist._id}`,
+          type: 'PLAYLIST_CREATED',
+          message: `created a new playlist "${playlist.name}"`,
+          timestamp: playlist.createdAt,
+          userId: playlist.userId,
+          targetId: playlist._id,
+          targetType: 'PLAYLIST',
+          targetName: playlist.name,
+        })),
+      ];
+
+      // Sort all activities by timestamp (newest first)
+      allActivities.sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      );
+
+      // Calculate pagination
+      const totalActivities = allActivities.length;
+      const totalPages = Math.ceil(totalActivities / limit);
+      const paginatedActivities = allActivities.slice(skip, skip + limit);
+
+      return {
+        success: true,
+        data: {
+          activities: paginatedActivities,
+          page,
+          limit,
+          total: totalActivities,
+          pages: totalPages,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching paginated admin activity:', error);
+      return {
+        success: false,
+        message: 'Failed to retrieve admin activity',
+        error: error.message,
+      };
+    }
+  }
 }

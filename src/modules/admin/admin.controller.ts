@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 // import { RolesGuard } from '@/common/guards/roles.guard';
 // import { Roles } from '@/common/decorators/roles.decorator';
@@ -18,7 +18,18 @@ export class AdminController {
   }
 
   @Get('dashboard/activity')
-  getActivity() {
+  getDashboardActivity() {
     return this.adminService.getActivity();
+  }
+
+  @Get('activity')
+  getActivity(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+    @Query('type') type: string,
+  ) {
+    const pageInt = parseInt(page, 10) || 1;
+    const limitInt = parseInt(limit, 10) || 20;
+    return this.adminService.getActivityPaginated(pageInt, limitInt, type);
   }
 }

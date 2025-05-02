@@ -102,6 +102,11 @@ export class SongsController {
     return this.songsService.findOne(id);
   }
 
+  @Patch(':id/plays')
+  async incrementPlays(@Param('id') id: string) {
+    return this.songsService.incrementPlays(id);
+  }
+
   // @Get(':id/genres')
   // findGenresBySong(@Param('id') id: string): Promise<Genre[]> {
   //   return this.songsService.findGenresBySong(id);

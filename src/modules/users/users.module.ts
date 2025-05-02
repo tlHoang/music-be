@@ -6,6 +6,8 @@ import { User, UserSchema } from '@/modules/users/schemas/user.schema';
 import { Follower, FollowerSchema } from '../followers/schemas/follower.schema';
 import { Song, SongSchema } from '../songs/schemas/song.schema';
 import { JwtModule } from '@nestjs/jwt';
+import { RolesGuard } from '@/common/guards/roles.guard';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -17,7 +19,14 @@ import { JwtModule } from '@nestjs/jwt';
     JwtModule.register({}), // Register JwtModule to provide JwtService
   ],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [
+    UsersService,
+    // Explicitly register RolesGuard for this module
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+  ],
   exports: [UsersService],
 })
 export class UsersModule {}
