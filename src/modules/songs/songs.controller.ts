@@ -26,6 +26,7 @@ import { Request } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
+import { GenreSongService } from '@/modules/genre-song/genre-song.service';
 
 @ApiTags('songs')
 @Controller('songs')
@@ -34,6 +35,7 @@ export class SongsController {
     private readonly songsService: SongsService,
     private readonly firebaseService: FirebaseService,
     private readonly jwtService: JwtService,
+    private readonly genreSongService: GenreSongService,
   ) {}
 
   @Post()
@@ -124,7 +126,7 @@ export class SongsController {
   async uploadMusicWithData(
     @UploadedFile() file: Express.Multer.File,
     @Body() createSongDto: CreateSongDto,
-    @Req() request: Request, // Updated type from `any` to `Request`
+    @Req() request: Request,
   ) {
     // Extract the authenticated user's ID from the JWT token
     const authenticatedUserId = this.jwtService.decode(
@@ -150,15 +152,24 @@ export class SongsController {
 
     const uploadDate = new Date();
 
+    // With our DTO transformation, genres should already be properly formatted
+    console.log('Genres to store:', createSongDto.genres);
+
+    // Prepare song data including genres
     const songData = {
       ...createSongDto,
-      userId: authenticatedUserId, // Use the userId from the JWT
+      userId: authenticatedUserId,
       audioUrl: fileUrl,
       duration,
       uploadDate,
     };
 
-    return this.songsService.create(songData);
+    // Create the song with genres embedded
+    const newSong = await this.songsService.create(songData);
+    console.log('Created new song with genres:', newSong._id);
+
+    // Return the song with the embedded genres
+    return newSong;
   }
 
   @Post('get-signed-url')
@@ -183,7 +194,53 @@ export class SongsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.songsService.remove(id);
+  async remove(@Param('id') id: string) {
+    try {
+      // First, get the song to access its audioUrl
+      const song = await this.songsService.findOne(id);
+
+      if (!song) {
+        return {
+          success: false,
+          message: 'Song not found',
+        };
+      }
+
+      console.log('Deleting song with ID:', id);
+      console.log('Audio URL to delete:', song.audioUrl);
+
+      // Check if the URL looks valid
+      if (!song.audioUrl || !song.audioUrl.startsWith('https://')) {
+        console.error('Invalid audio URL format:', song.audioUrl);
+        // Still delete the DB record even if URL is invalid
+        await this.songsService.remove(id);
+        return {
+          success: true,
+          message: 'Song deleted from database, but audio URL was invalid',
+          fileDeleted: false,
+        };
+      }
+
+      // Delete the audio file from Firebase
+      const fileDeleted = await this.firebaseService.deleteFile(song.audioUrl);
+      console.log('File deletion result:', fileDeleted);
+
+      // Delete the song record from the database
+      const result = await this.songsService.remove(id);
+
+      return {
+        success: true,
+        message: 'Song deleted successfully',
+        fileDeleted: fileDeleted,
+        audioUrl: song.audioUrl, // Return the URL for debugging
+      };
+    } catch (error) {
+      console.error('Error deleting song:', error);
+      return {
+        success: false,
+        message: 'Failed to delete song',
+        error: error.message,
+      };
+    }
   }
 }

@@ -35,6 +35,10 @@ export class Song {
   @Prop({ enum: ['PRIVATE', 'PUBLIC'], default: 'PUBLIC' })
   visibility: string;
 
+  // Add the new genres field - storing as an array of references to Genre documents
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Genre' }], default: [] })
+  genres: Types.ObjectId[];
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 

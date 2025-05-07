@@ -25,7 +25,9 @@ export class FirebaseService {
             'https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-3cro0%40smarthome1-6a97d.iam.gserviceaccount.com',
           universe_domain: 'googleapis.com',
         } as admin.ServiceAccount),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+        // Use environment variable with fallback to the hardcoded bucket name
+        storageBucket:
+          process.env.FIREBASE_STORAGE_BUCKET || 'smarthome1-6a97d.appspot.com',
       });
     }
   }
@@ -73,6 +75,166 @@ export class FirebaseService {
       console.error('Error generating signed URL:', error);
       // If we can't generate a signed URL, return the original URL
       return fileUrl;
+    }
+  }
+
+  async deleteFile(fileUrl: string): Promise<boolean> {
+    try {
+      if (!fileUrl) {
+        console.error('Error deleting file: fileUrl is null or undefined');
+        return false;
+      }
+
+      console.log('Attempting to delete file:', fileUrl);
+
+      // Extract the file path from the public URL
+      const bucket = admin.storage().bucket();
+      console.log('Storage bucket name:', bucket.name);
+
+      try {
+        const urlObj = new URL(fileUrl);
+        console.log('URL object:', {
+          href: urlObj.href,
+          origin: urlObj.origin,
+          pathname: urlObj.pathname,
+          hostname: urlObj.hostname,
+        });
+
+        // The pathname starts with '/', so we remove the first character
+        // Then we split by '/' and remove the first segment (bucket name)
+        const pathSegments = urlObj.pathname.substring(1).split('/');
+        console.log('Path segments before processing:', pathSegments);
+
+        // Extract the bucket name from the hostname or path for debugging
+        const bucketFromUrl = urlObj.hostname.split('.')[0];
+        console.log('Bucket name from URL hostname:', bucketFromUrl);
+
+        // If the URL format is different, this might need adjustment
+        // For Firebase Storage, we usually get: /BUCKET/PATH_TO_FILE
+        const possibleBucketName = pathSegments[0];
+        console.log('Possible bucket name from path:', possibleBucketName);
+
+        // Remove bucket name from path
+        pathSegments.shift();
+
+        const filePath = pathSegments.join('/');
+        console.log('Final extracted file path:', filePath);
+
+        if (!filePath) {
+          console.error('Error deleting file: Extracted file path is empty');
+          return false;
+        }
+
+        // Try an alternative approach if the standard one fails
+        // Some Firebase URL formats might be different
+        if (filePath.includes('%2F')) {
+          console.log('URL contains encoded slashes, attempting to decode');
+          const decodedPath = decodeURIComponent(filePath);
+          console.log('Decoded path:', decodedPath);
+          const file = bucket.file(decodedPath);
+          const [exists] = await file.exists();
+
+          if (exists) {
+            await file.delete();
+            console.log(
+              `Successfully deleted file using decoded path: ${decodedPath}`,
+            );
+            return true;
+          } else {
+            console.log(`File does not exist at decoded path: ${decodedPath}`);
+          }
+        }
+
+        // Standard approach
+        const file = bucket.file(filePath);
+        console.log('Firebase file path:', file.name);
+
+        // Check if file exists before attempting to delete
+        const [exists] = await file.exists();
+        console.log(`File exists check: ${exists}`);
+
+        if (!exists) {
+          console.error(`File does not exist at path: ${filePath}`);
+
+          // Try a different path format as a fallback
+          const urlParts = fileUrl.split('/');
+          const altFilePath = urlParts.slice(4).join('/');
+          console.log('Trying alternative file path:', altFilePath);
+
+          const altFile = bucket.file(altFilePath);
+          const [altExists] = await altFile.exists();
+
+          if (altExists) {
+            console.log(`File exists at alternative path: ${altFilePath}`);
+            await altFile.delete();
+            console.log(
+              `Successfully deleted file using alternative path: ${altFilePath}`,
+            );
+            return true;
+          } else {
+            console.log(
+              `File also does not exist at alternative path: ${altFilePath}`,
+            );
+          }
+
+          return false;
+        }
+
+        // Delete the file
+        await file.delete();
+        console.log(`Successfully deleted file: ${filePath}`);
+        return true;
+      } catch (err) {
+        console.error('Error in URL parsing or file operations:', err);
+        if (err instanceof Error) {
+          console.error('Error details:', err.message);
+        }
+
+        // Try a different approach by extracting the path directly from the URL
+        try {
+          console.log('Attempting alternative deletion approach');
+          // Extract path from URL without URL parsing
+          // Example URL: https://storage.googleapis.com/smarthome1-6a97d.appspot.com/music/uuid.mp3
+
+          const parts = fileUrl.split('/');
+          // Remove protocol and domain parts
+          const pathParts = parts.slice(3); // Skip https:, '', storage.googleapis.com
+
+          // Extract the bucket name
+          const bucketName = parts[3].split('.')[0]; // smarthome1-6a97d
+          console.log(
+            'Alternative approach - extracted bucket name:',
+            bucketName,
+          );
+
+          // Remove bucket name from path
+          const filePath = pathParts.slice(1).join('/');
+          console.log('Alternative approach - extracted file path:', filePath);
+
+          const file = bucket.file(filePath);
+          const [exists] = await file.exists();
+
+          if (exists) {
+            await file.delete();
+            console.log(`Alternative approach - deleted file: ${filePath}`);
+            return true;
+          } else {
+            console.log(`Alternative approach - file not found: ${filePath}`);
+            return false;
+          }
+        } catch (altErr) {
+          console.error('Alternative deletion approach failed:', altErr);
+          return false;
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting file from Firebase:', error);
+      // Log specific information that might help with debugging
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      return false;
     }
   }
 }

@@ -7,6 +7,7 @@ import { FirebaseModule } from '../firebase/firebase.module';
 import { JwtModule } from '@nestjs/jwt';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Follower, FollowerSchema } from '../followers/schemas/follower.schema';
+import { GenreSongModule } from '../genre-song/genre-song.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { Follower, FollowerSchema } from '../followers/schemas/follower.schema';
     ]),
     FirebaseModule,
     JwtModule.register({}), // Register JwtModule to provide JwtService
+    GenreSongModule, // Import GenreSongModule to use its service
   ],
   controllers: [SongsController],
   providers: [SongsService],

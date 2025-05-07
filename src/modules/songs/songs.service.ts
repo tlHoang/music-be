@@ -29,11 +29,11 @@ export class SongsService {
   }
 
   findAll() {
-    return this.songModel.find().exec();
+    return this.songModel.find().populate('genres').exec();
   }
 
   findOne(id: string) {
-    return this.songModel.findById(id).exec();
+    return this.songModel.findById(id).populate('genres').exec();
   }
 
   update(id: string, updateSongDto: UpdateSongDto) {
@@ -42,19 +42,59 @@ export class SongsService {
       .exec();
   }
 
-  remove(id: string) {
-    return this.songModel.findByIdAndDelete(id).exec();
+  async remove(id: string) {
+    // First, find the song to get the userId
+    const song = await this.songModel.findById(id);
+
+    if (!song) {
+      return null;
+    }
+
+    // Get the user ID from the song
+    const userId = song.userId;
+
+    // Delete the song from the database
+    const result = await this.songModel.findByIdAndDelete(id).exec();
+
+    if (result) {
+      try {
+        // Convert string ID to ObjectId for proper matching
+        const songObjectId = new Types.ObjectId(id);
+
+        // Remove the song ID from the user's songs array
+        const updateResult = await this.userModel.findByIdAndUpdate(
+          userId,
+          { $pull: { songs: songObjectId } },
+          { new: true },
+        );
+
+        console.log(
+          `Attempted to remove song ${id} from user ${userId}'s songs array`,
+        );
+        console.log('User songs after update:', updateResult?.songs);
+      } catch (error) {
+        console.error('Error removing song from user songs array:', error);
+      }
+    }
+
+    return result;
   }
 
   async findSongsByUser(userId: string) {
-    return this.songModel.find({ userId }).sort({ uploadDate: -1 });
+    return this.songModel
+      .find({ userId })
+      .populate('genres')
+      .sort({ uploadDate: -1 });
   }
 
   async findPublicSongsByUser(userId: string, isOwner: boolean = false) {
     // If owner is viewing, return all songs. Otherwise, only return public songs
     const query = isOwner ? { userId } : { userId, visibility: 'PUBLIC' };
 
-    return this.songModel.find(query).sort({ uploadDate: -1 });
+    return this.songModel
+      .find(query)
+      .populate('genres')
+      .sort({ uploadDate: -1 });
   }
 
   async getFeed(userId: string): Promise<FeedItem[]> {
