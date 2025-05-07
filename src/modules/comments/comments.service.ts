@@ -4,15 +4,27 @@ import { Model } from 'mongoose';
 import { Comment } from './schemas/comment.schema';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { Song } from '@/modules/songs/schemas/song.schema';
 
 @Injectable()
 export class CommentsService {
   constructor(
     @InjectModel(Comment.name) private readonly commentModel: Model<Comment>,
+    @InjectModel(Song.name) private readonly songModel: Model<Song>,
   ) {}
 
-  create(createCommentDto: CreateCommentDto) {
-    return this.commentModel.create(createCommentDto);
+  async create(createCommentDto: CreateCommentDto) {
+    // Create the comment
+    const comment = await this.commentModel.create(createCommentDto);
+
+    // Increment the commentCount in the song document
+    await this.songModel.findByIdAndUpdate(
+      createCommentDto.songId,
+      { $inc: { commentCount: 1 } },
+      { new: true },
+    );
+
+    return comment;
   }
 
   findAll() {
@@ -37,7 +49,26 @@ export class CommentsService {
       .exec();
   }
 
-  remove(id: string) {
-    return this.commentModel.findByIdAndDelete(id).exec();
+  async remove(id: string) {
+    // Find the comment to get the songId before deleting
+    const comment = await this.commentModel.findById(id).exec();
+
+    if (!comment) {
+      return null;
+    }
+
+    // Delete the comment
+    const result = await this.commentModel.findByIdAndDelete(id).exec();
+
+    if (result) {
+      // Decrement the commentCount in the song document, ensuring it doesn't go below 0
+      await this.songModel.findByIdAndUpdate(
+        comment.songId,
+        { $inc: { commentCount: -1 } },
+        { new: true },
+      );
+    }
+
+    return result;
   }
 }

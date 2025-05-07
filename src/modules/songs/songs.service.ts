@@ -176,7 +176,7 @@ export class SongsService {
     try {
       const song = await this.songModel.findByIdAndUpdate(
         id,
-        { $inc: { plays: 1 } },
+        { $inc: { playCount: 1 } },
         { new: true },
       );
 

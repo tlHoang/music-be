@@ -3,11 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Like } from './schemas/like.schema';
 import { CreateLikeDto } from './dto/create-like.dto';
+import { Song } from '@/modules/songs/schemas/song.schema';
 
 @Injectable()
 export class LikesService {
   constructor(
     @InjectModel(Like.name) private readonly likeModel: Model<Like>,
+    @InjectModel(Song.name) private readonly songModel: Model<Song>,
   ) {}
 
   async create(createLikeDto: CreateLikeDto) {
@@ -39,6 +41,13 @@ export class LikesService {
       songId,
     });
 
+    // Increment the likeCount in the song document
+    await this.songModel.findByIdAndUpdate(
+      songId,
+      { $inc: { likeCount: 1 } },
+      { new: true },
+    );
+
     const likeCount = await this.countLikes(songId);
 
     return {
@@ -52,6 +61,16 @@ export class LikesService {
   async unlikeSong(userId: string, songId: string) {
     // Remove like and get result
     const result = await this.removeByUserAndSong(userId, songId);
+
+    if (result) {
+      // Decrement the likeCount in the song document, but ensure it doesn't go below 0
+      await this.songModel.findByIdAndUpdate(
+        songId,
+        { $inc: { likeCount: -1 } },
+        { new: true },
+      );
+    }
+
     const likeCount = await this.countLikes(songId);
 
     return {
