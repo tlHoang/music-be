@@ -233,4 +233,54 @@ export class SongsService {
       };
     }
   }
+  async searchSongs(query: string) {
+    try {
+      if (!query || query.trim() === '') {
+        return {
+          success: true,
+          data: [],
+          message: 'Please provide a search query',
+        };
+      }
+
+      // Create a case-insensitive regex for searching
+      const searchRegex = new RegExp(query, 'i');
+
+      // Search in title, artist, etc.
+      const songs = await this.songModel
+        .find({
+          $or: [
+            { title: searchRegex },
+            { artist: searchRegex },
+            { album: searchRegex },
+          ],
+          // Only return songs that are public/active
+          visibility: 'PUBLIC',
+        })
+        .limit(20) // Limit results for performance
+        .sort({ createdAt: -1 }) // Sort by newest first
+        .populate('userId', '_id name username profilePicture')
+        .lean();
+
+      console.log(`Search for "${query}" found ${songs.length} songs`);
+
+      // Map the results to ensure consistent field naming between frontend and backend
+      const mappedSongs = songs.map((song) => ({
+        ...song,
+        coverImage: song.thumbnail, // Map thumbnail to coverImage for frontend compatibility
+      }));
+
+      return {
+        success: true,
+        data: mappedSongs,
+      };
+    } catch (error) {
+      console.error('Error searching songs:', error);
+      return {
+        success: false,
+        message: 'Failed to search songs',
+        error: error.message,
+      };
+    }
+  }
 }

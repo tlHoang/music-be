@@ -9,6 +9,12 @@ export class Song {
   title: string;
 
   @Prop()
+  artist: string;
+
+  @Prop()
+  album: string;
+
+  @Prop()
   duration: number;
 
   @Prop()

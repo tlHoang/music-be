@@ -40,10 +40,10 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   app.enableCors({
-    origins: true,
+    origin: 'http://localhost:3000', // Specify the frontend origin explicitly
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     preflightContinue: false,
-    creadentials: true,
+    credentials: true, // Fixed the typo: creadentials -> credentials
   });
 
   await app.listen(configService.get<number>('PORT') || 3000);

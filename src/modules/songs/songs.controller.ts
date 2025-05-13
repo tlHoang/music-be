@@ -99,6 +99,16 @@ export class SongsController {
     );
   }
 
+  @Get('search')
+  async searchSongs(@Req() request: Request) {
+    // Get the query parameter
+    const query = request.query.query as string;
+    console.log('Search query:', query);
+
+    // Call the service method
+    return this.songsService.searchSongs(query);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.songsService.findOne(id);
