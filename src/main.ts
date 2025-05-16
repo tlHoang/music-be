@@ -38,12 +38,11 @@ async function bootstrap() {
   app.use(new RequestLoggerMiddleware().use);
 
   const configService = app.get(ConfigService);
-
   app.enableCors({
-    origin: 'http://localhost:3000', // Specify the frontend origin explicitly
+    origin: true, // Allow all origins for development
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     preflightContinue: false,
-    credentials: true, // Fixed the typo: creadentials -> credentials
+    credentials: true,
   });
 
   await app.listen(configService.get<number>('PORT') || 3000);

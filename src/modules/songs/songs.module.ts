@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SongsService } from './songs.service';
 import { SongsController } from './songs.controller';
+import { ProxyController } from './proxy.controller';
 import { Song, SongSchema } from './schemas/song.schema';
 import { FirebaseModule } from '../firebase/firebase.module';
 import { JwtModule } from '@nestjs/jwt';
@@ -20,7 +21,7 @@ import { GenreSongModule } from '../genre-song/genre-song.module';
     JwtModule.register({}), // Register JwtModule to provide JwtService
     GenreSongModule, // Import GenreSongModule to use its service
   ],
-  controllers: [SongsController],
+  controllers: [SongsController, ProxyController],
   providers: [SongsService],
   exports: [SongsService],
 })

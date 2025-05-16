@@ -18,6 +18,7 @@ import { LikesModule } from './modules/likes/likes.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { FollowersModule } from './modules/followers/followers.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { HealthCheckModule } from './modules/health-check/health-check.module';
 // Import other modules here...
 
 @Module({
@@ -65,11 +66,11 @@ import { AdminModule } from './modules/admin/admin.module';
     }),
     SongsModule,
     PlaylistsModule,
-    GenresModule,
-    LikesModule,
+    GenresModule,    LikesModule,
     CommentsModule,
     FollowersModule,
     AdminModule,
+    HealthCheckModule,
     // Add other modules here...
   ],
   controllers: [AppController],
