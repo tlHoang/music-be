@@ -11,7 +11,11 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  FileInterceptor,
+  FileFieldsInterceptor,
+} from '@nestjs/platform-express';
+import { UploadedFiles } from '@nestjs/common';
 import { SongsService } from './songs.service';
 import { CreateSongDto } from './dto/create-song.dto';
 import { UpdateSongDto } from './dto/update-song.dto';
@@ -27,6 +31,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { GenreSongService } from '@/modules/genre-song/genre-song.service';
+import { Public } from '@/common/decorators/public.decorator';
 
 @ApiTags('songs')
 @Controller('songs')
@@ -44,8 +49,19 @@ export class SongsController {
   }
 
   @Get()
-  findAll() {
-    return this.songsService.findAll();
+  async findAll() {
+    const songs = await this.songsService.findAll();
+    // For each song, get signed cover URL if present
+    const songsWithSignedCover = await Promise.all(
+      songs.map(async (song) => {
+        let cover = song.cover;
+        if (cover && cover.includes('storage.googleapis.com')) {
+          cover = await this.firebaseService.getSignedUrl(cover);
+        }
+        return { ...song, cover };
+      }),
+    );
+    return songsWithSignedCover;
   }
 
   @Get('all')
@@ -65,19 +81,49 @@ export class SongsController {
     ).sub;
 
     // Fetch songs for the user
-    return this.songsService.findSongsByUser(userId);
+    const songs = await this.songsService.findSongsByUser(userId);
+    // For each song, get signed cover URL if present
+    const songsWithSignedCover = await Promise.all(
+      songs.map(async (song) => {
+        let cover = song.cover;
+        if (cover && cover.includes('storage.googleapis.com')) {
+          cover = await this.firebaseService.getSignedUrl(cover);
+        }
+        return { ...song, cover };
+      }),
+    );
+    return songsWithSignedCover;
   }
 
   @Get('feed')
   async getFeed(@Req() request: Request) {
-    // const userId = request.user?._id;
     const userId = this.jwtService.decode(
       request.headers.authorization!.split(' ')[1],
     ).sub;
     if (!userId) {
       throw new Error('User not authenticated');
     }
-    return this.songsService.getFeed(userId);
+    // Get the feed from the service
+    const feed = await this.songsService.getFeed(userId);
+    // For each song, get signed cover URL if present
+    const feedWithSignedCover = await Promise.all(
+      feed.map(async (song) => {
+        // Use the correct property for cover image in FeedItem
+        let coverImage =
+          (song as any).coverImage ||
+          (song as any).cover ||
+          (song as any).thumbnail;
+        if (
+          coverImage &&
+          typeof coverImage === 'string' &&
+          coverImage.includes('storage.googleapis.com')
+        ) {
+          coverImage = await this.firebaseService.getSignedUrl(coverImage);
+        }
+        return { ...song, coverImage };
+      }),
+    );
+    return feedWithSignedCover;
   }
 
   @Get('user/:userId')
@@ -99,19 +145,25 @@ export class SongsController {
     );
   }
 
+  @Public()
   @Get('search')
   async searchSongs(@Req() request: Request) {
-    // Get the query parameter
-    const query = request.query.query as string;
-    console.log('Search query:', query);
-
-    // Call the service method
-    return this.songsService.searchSongs(query);
+    // Restore param-based logic: use query params for searching/filtering
+    const query = request.query;
+    console.log('query: ', query);
+    return this.songsService.advancedSearchSongs(query);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.songsService.findOne(id);
+  async findOne(@Param('id') id: string) {
+    const song = await this.songsService.findOne(id);
+    if (!song) return null;
+    // Get signed URL for cover if present
+    let cover = song.cover;
+    if (cover && cover.includes('storage.googleapis.com')) {
+      cover = await this.firebaseService.getSignedUrl(cover);
+    }
+    return { ...song.toObject(), cover };
   }
 
   @Patch(':id/plays')
@@ -132,9 +184,15 @@ export class SongsController {
   }
 
   @Post('upload-with-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'audio', maxCount: 1 },
+      { name: 'cover', maxCount: 1 },
+    ]),
+  )
   async uploadMusicWithData(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles()
+    files: { audio?: Express.Multer.File[]; cover?: Express.Multer.File[] },
     @Body() createSongDto: CreateSongDto,
     @Req() request: Request,
   ) {
@@ -143,42 +201,49 @@ export class SongsController {
       request.headers.authorization!.split(' ')[1],
     ).sub;
 
-    const fileUrl = await this.firebaseService.uploadFile(file);
+    // Handle cover image if present
+    let coverUrl: string | undefined = undefined;
+    if (files.cover && files.cover[0]) {
+      coverUrl = await this.firebaseService.uploadFile(
+        files.cover[0],
+        'covers',
+      );
+    }
 
-    // Extract metadata using ffmpeg
-    const duration = await new Promise<number>((resolve, reject) => {
-      const tempFilePath = `./uploads/temp-${Date.now()}-${file.originalname}`;
-      require('fs').writeFileSync(tempFilePath, file.buffer);
-
-      ffmpeg.ffprobe(tempFilePath, (err, metadata) => {
-        require('fs').unlinkSync(tempFilePath); // Clean up temp file
-        if (err) {
-          console.error('Error extracting metadata:', err);
-          return reject(err);
-        }
-        resolve(metadata.format.duration || 0);
+    // Handle audio file if present
+    let fileUrl: string | undefined = undefined;
+    let duration = 0;
+    if (files.audio && files.audio[0]) {
+      fileUrl = await this.firebaseService.uploadFile(files.audio[0], 'music');
+      // Extract metadata using ffmpeg
+      duration = await new Promise<number>((resolve, reject) => {
+        const tempFilePath = `./uploads/temp-${Date.now()}-${files.audio![0].originalname}`;
+        require('fs').writeFileSync(tempFilePath, files.audio![0].buffer);
+        ffmpeg.ffprobe(tempFilePath, (err, metadata) => {
+          require('fs').unlinkSync(tempFilePath); // Clean up temp file
+          if (err) {
+            console.error('Error extracting metadata:', err);
+            return reject(err);
+          }
+          resolve(metadata.format.duration || 0);
+        });
       });
-    });
+    }
 
     const uploadDate = new Date();
 
-    // With our DTO transformation, genres should already be properly formatted
-    console.log('Genres to store:', createSongDto.genres);
-
-    // Prepare song data including genres
+    // Prepare song data including cover
     const songData = {
       ...createSongDto,
       userId: authenticatedUserId,
       audioUrl: fileUrl,
       duration,
       uploadDate,
+      cover: coverUrl,
     };
 
-    // Create the song with genres embedded
+    // Create the song
     const newSong = await this.songsService.create(songData);
-    console.log('Created new song with genres:', newSong._id);
-
-    // Return the song with the embedded genres
     return newSong;
   }
 
@@ -252,5 +317,25 @@ export class SongsController {
         error: error.message,
       };
     }
+  }
+
+  /**
+   * Get the public or signed audio URL for a song by ID
+   * Example: GET /songs/:id/audio-url
+   * Returns: { audioUrl: string }
+   */
+  @Get(':id/audio-url')
+  async getAudioUrl(@Param('id') id: string) {
+    const song = await this.songsService.findOne(id);
+    if (!song) {
+      return { error: 'Song not found' };
+    }
+    // If the audioUrl is a Firebase Storage URL, get a signed URL
+    if (song.audioUrl && song.audioUrl.includes('storage.googleapis.com')) {
+      const signedUrl = await this.firebaseService.getSignedUrl(song.audioUrl);
+      return { audioUrl: signedUrl };
+    }
+    // Otherwise, return the original URL
+    return { audioUrl: song.audioUrl };
   }
 }

@@ -129,15 +129,14 @@ export class UsersService {
       password: hashedPassword,
       isActive: false,
       codeId: uuidv4(),
-      // codeExpired: dayjs().add(1, 'day'),
       codeExpired: dayjs().add(
-        1,
-        'second',
-        // this.configService.get<number>('CODE_EXPIRED_TIME', 1),
-        // this.configService.get<string>(
-        //   'CODE_EXPIRED_UNIT',
-        //   'day',
-        // ) as dayjs.ManipulateType,
+        // 1,
+        // 'second',
+        this.configService.get<number>('CODE_EXPIRED_TIME', 1),
+        this.configService.get<string>(
+          'CODE_EXPIRED_UNIT',
+          'day',
+        ) as dayjs.ManipulateType,
       ),
     });
 

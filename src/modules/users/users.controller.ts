@@ -65,6 +65,23 @@ export class UsersController {
     return this.userService.discoverUsers(currentUserId);
   }
 
+  @Get('popular')
+  @Public()
+  async getPopularUsers(@Req() request: Request) {
+    // Alias for discoverUsers, for frontend compatibility
+    let currentUserId = null;
+    if (request.headers.authorization) {
+      try {
+        const token = request.headers.authorization.split(' ')[1];
+        const decoded = this.userService.decodeToken(token);
+        currentUserId = decoded?.sub;
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    }
+    return this.userService.discoverUsers(currentUserId);
+  }
+
   @Get(':id')
   async getUserProfile(@Param('id') id: string, @Req() request: Request) {
     // Extract the authenticated user's ID from the JWT token if available

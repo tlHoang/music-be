@@ -32,9 +32,12 @@ export class FirebaseService {
     }
   }
 
-  async uploadFile(file: Express.Multer.File): Promise<string> {
+  async uploadFile(
+    file: Express.Multer.File,
+    folder: 'music' | 'covers' = 'music',
+  ): Promise<string> {
     const bucket = admin.storage().bucket();
-    const fileName = `music/${uuidv4()}${path.extname(file.originalname)}`;
+    const fileName = `${folder}/${uuidv4()}${path.extname(file.originalname)}`;
     const fileUpload = bucket.file(fileName);
 
     await fileUpload.save(file.buffer, {
@@ -53,16 +56,11 @@ export class FirebaseService {
       const bucket = admin.storage().bucket();
       const urlObj = new URL(fileUrl);
 
-      // The pathname starts with '/', so we remove the first character
-      // Then we split by '/' and remove the first segment (bucket name)
-      const pathSegments = urlObj.pathname.substring(1).split('/');
-
-      // If the URL format is different, this might need adjustment
-      // For Firebase Storage, we usually get: /BUCKET/PATH_TO_FILE
-      pathSegments.shift(); // Remove bucket name from path
-
-      const filePath = pathSegments.join('/');
-      const file = bucket.file(filePath);
+      // Remove leading slash and bucket name
+      const pathWithBucket = urlObj.pathname.substring(1); // e.g. smarthome1-6a97d.appspot.com/music%2Fabc.mp3
+      const pathWithoutBucket = pathWithBucket.split('/').slice(1).join('/'); // e.g. music%2Fabc.mp3
+      const decodedPath = decodeURIComponent(pathWithoutBucket); // e.g. music/abc.mp3
+      const file = bucket.file(decodedPath);
 
       // Generate a signed URL that expires in 1 hour
       const [signedUrl] = await file.getSignedUrl({

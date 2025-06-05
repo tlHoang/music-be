@@ -4,7 +4,6 @@ import { Request } from 'express';
 
 @Controller('health-check')
 export class HealthCheckController {
-  
   @Public()
   @Get()
   async checkHealth(@Req() request: Request, @Headers() headers: any) {
@@ -13,7 +12,7 @@ export class HealthCheckController {
       'X-App-Version': headers['x-app-version'],
       'X-Platform': headers['x-platform'],
     });
-    
+
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -22,10 +21,10 @@ export class HealthCheckController {
       headers: {
         'X-App-Version': headers['x-app-version'],
         'X-Platform': headers['x-platform'],
-      }
+      },
     };
   }
-  
+
   @Public()
   @Get('ping')
   async ping() {

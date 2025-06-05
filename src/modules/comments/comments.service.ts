@@ -32,10 +32,11 @@ export class CommentsService {
   }
 
   async findBySongId(songId: string) {
+    // Restore populate to return user info for userId
     return this.commentModel
       .find({ songId })
       .populate('userId', 'name username email profilePicture _id')
-      .sort({ createdAt: -1 }) // Newest comments first
+      .sort({ createdAt: -1 })
       .exec();
   }
 

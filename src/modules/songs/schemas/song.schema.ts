@@ -38,6 +38,9 @@ export class Song {
   @Prop()
   thumbnail: string;
 
+  @Prop()
+  cover: string; // New field for cover image URL
+
   @Prop({ enum: ['PRIVATE', 'PUBLIC'], default: 'PUBLIC' })
   visibility: string;
 
