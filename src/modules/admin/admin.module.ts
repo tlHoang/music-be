@@ -5,7 +5,6 @@ import { AdminService } from './admin.service';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Song, SongSchema } from '../songs/schemas/song.schema';
 import { Playlist, PlaylistSchema } from '../playlists/schemas/playlist.schema';
-import { Follower, FollowerSchema } from '../followers/schemas/follower.schema';
 
 @Module({
   imports: [
@@ -13,7 +12,6 @@ import { Follower, FollowerSchema } from '../followers/schemas/follower.schema';
       { name: User.name, schema: UserSchema },
       { name: Song.name, schema: SongSchema },
       { name: Playlist.name, schema: PlaylistSchema },
-      { name: Follower.name, schema: FollowerSchema },
     ]),
   ],
   controllers: [AdminController],

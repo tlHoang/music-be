@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsOptional, IsEnum, IsArray } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsArray,
+  IsString,
+} from 'class-validator';
 
 export class CreatePlaylistDto {
   @IsNotEmpty()
@@ -14,4 +20,8 @@ export class CreatePlaylistDto {
   @IsOptional()
   @IsEnum(['PUBLIC', 'PRIVATE'])
   visibility?: string;
+
+  @IsOptional()
+  @IsString()
+  cover?: string;
 }

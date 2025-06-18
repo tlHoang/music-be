@@ -1,9 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Song } from './schemas/song.schema';
+import { FlagReport } from './schemas/flag-report.schema';
 import { CreateSongDto } from './dto/create-song.dto';
 import { UpdateSongDto } from './dto/update-song.dto';
+import { CreateFlagReportDto } from './dto/create-flag-report.dto';
+import { ReviewFlagReportDto } from './dto/review-flag-report.dto';
 import { Genre } from '@/modules/genres/schemas/genre.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Follower } from '../followers/schemas/follower.schema';
@@ -15,6 +23,8 @@ import { GenresService } from '../genres/genres.service';
 export class SongsService {
   constructor(
     @InjectModel(Song.name) private readonly songModel: Model<Song>,
+    @InjectModel(FlagReport.name)
+    private readonly flagReportModel: Model<FlagReport>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Follower.name) private readonly followerModel: Model<Follower>,
     private readonly firebaseService: FirebaseService, // Inject FirebaseService
@@ -60,7 +70,11 @@ export class SongsService {
   }
 
   async findOne(id: string) {
-    return this.songModel.findById(id).populate('genres').exec();
+    return this.songModel
+      .findById(id)
+      .populate('genres')
+      .populate('userId', '_id name username profilePicture email')
+      .exec();
   }
 
   update(id: string, updateSongDto: UpdateSongDto) {
@@ -225,31 +239,72 @@ export class SongsService {
 
   async findAllForAdmin() {
     try {
+      console.log('Finding songs for admin...');
       const songs = await this.songModel
         .find()
         .sort({ uploadDate: -1 })
         .populate('userId', '_id name username email profilePicture')
+        .populate('genres', '_id name')
         .lean();
 
-      // Add additional statistics or information needed for admin
-      const enhancedSongs = songs.map((song) => {
-        return {
-          ...song,
-          // You can add additional computed properties here if needed
-        };
-      });
+      console.log('Sample song genres before processing:', songs[0]?.genres);
 
-      return {
-        success: true,
-        data: enhancedSongs,
-      };
+      // Generate signed URLs for audioUrl and cover for each song
+      const enhancedSongs = await Promise.all(
+        songs.map(async (song) => {
+          let audioUrl = song.audioUrl;
+          let cover = song.cover;
+
+          // Generate signed URL for audio if it's a Firebase Storage URL
+          if (audioUrl && audioUrl.includes('storage.googleapis.com')) {
+            audioUrl = await this.firebaseService.getSignedUrl(audioUrl);
+          }
+
+          // Generate signed URL for cover if it's a Firebase Storage URL
+          if (cover && cover.includes('storage.googleapis.com')) {
+            cover = await this.firebaseService.getSignedUrl(cover);
+          }
+
+          // Extract genre names from populated genres array
+          console.log('Processing song genres:', song.genres);
+          const genreNames =
+            (song.genres as any[])
+              ?.map((genre: any) => {
+                console.log('Genre object:', genre);
+                return genre?.name;
+              })
+              .filter(Boolean) || [];
+          const primaryGenre = genreNames.length > 0 ? genreNames[0] : null;
+
+          console.log(
+            'Extracted genre names:',
+            genreNames,
+            'Primary genre:',
+            primaryGenre,
+          );
+
+          return {
+            ...song,
+            audioUrl,
+            cover,
+            genre: primaryGenre, // Single genre for backward compatibility
+            genreNames, // All genre names for advanced use
+            // You can add additional computed properties here if needed
+          };
+        }),
+      );
+
+      console.log(
+        'Sample enhanced song:',
+        JSON.stringify(enhancedSongs[0], null, 2),
+      );
+
+      // Return the tracks directly, without nesting them
+      // This will become response.data after the interceptor processes it
+      return enhancedSongs;
     } catch (error) {
       console.error('Error fetching all songs for admin:', error);
-      return {
-        success: false,
-        message: 'Failed to retrieve songs',
-        error: error.message,
-      };
+      throw error; // Let the exception filters handle errors
     }
   }
 
@@ -280,6 +335,171 @@ export class SongsService {
         message: 'Failed to update song flag status',
         error: error.message,
       };
+    }
+  }
+
+  // User flag reporting methods
+  async reportSong(
+    songId: string,
+    userId: string,
+    createFlagReportDto: CreateFlagReportDto,
+  ) {
+    try {
+      // Check if song exists
+      const song = await this.songModel.findById(songId);
+      if (!song) {
+        throw new NotFoundException('Song not found');
+      }
+
+      // Check if user already reported this song
+      const existingReport = await this.flagReportModel.findOne({
+        songId: new Types.ObjectId(songId),
+        reportedBy: new Types.ObjectId(userId),
+      });
+
+      if (existingReport) {
+        throw new ConflictException('You have already reported this song');
+      }
+
+      // Create new flag report
+      const flagReport = await this.flagReportModel.create({
+        songId: new Types.ObjectId(songId),
+        reportedBy: new Types.ObjectId(userId),
+        reason: createFlagReportDto.reason,
+        description: createFlagReportDto.description,
+      });
+
+      return {
+        success: true,
+        message: 'Song reported successfully',
+        data: flagReport,
+      };
+    } catch (error) {
+      console.error(`Error reporting song ${songId}:`, error);
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to report song');
+    }
+  }
+
+  async getFlagReports(page: number = 1, limit: number = 10, status?: string) {
+    try {
+      const skip = (page - 1) * limit;
+      const filter = status ? { status } : {};
+
+      const [reports, total] = await Promise.all([
+        this.flagReportModel
+          .find(filter)
+          .populate('songId', 'title artist audioUrl thumbnail')
+          .populate('reportedBy', 'username name email')
+          .populate('reviewedBy', 'username name')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.flagReportModel.countDocuments(filter),
+      ]);
+
+      return {
+        success: true,
+        data: {
+          reports,
+          pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+          },
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching flag reports:', error);
+      throw new BadRequestException('Failed to fetch flag reports');
+    }
+  }
+
+  async reviewFlagReport(
+    reportId: string,
+    adminId: string,
+    reviewDto: ReviewFlagReportDto,
+  ) {
+    try {
+      // Find the flag report
+      const report = await this.flagReportModel.findById(reportId);
+      if (!report) {
+        throw new NotFoundException('Flag report not found');
+      }
+
+      // Update the report
+      const updatedReport = await this.flagReportModel
+        .findByIdAndUpdate(
+          reportId,
+          {
+            status: reviewDto.status,
+            reviewedBy: new Types.ObjectId(adminId),
+            reviewedAt: new Date(),
+            reviewNotes: reviewDto.reviewNotes,
+          },
+          { new: true },
+        )
+        .populate('songId', 'title artist');
+
+      // If admin decides to flag the song, update the song
+      if (reviewDto.flagSong) {
+        await this.songModel.findByIdAndUpdate(report.songId, {
+          isFlagged: true,
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Flag report reviewed successfully',
+        data: updatedReport,
+      };
+    } catch (error) {
+      console.error(`Error reviewing flag report ${reportId}:`, error);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to review flag report');
+    }
+  }
+
+  async getFlaggedSongs(page: number = 1, limit: number = 10) {
+    try {
+      const skip = (page - 1) * limit;
+
+      const [songs, total] = await Promise.all([
+        this.songModel
+          .find({ isFlagged: true })
+          .populate('userId', 'username name email')
+          .populate('genres')
+          .sort({ updatedAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.songModel.countDocuments({ isFlagged: true }),
+      ]);
+
+      return {
+        success: true,
+        data: {
+          songs,
+          pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+          },
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching flagged songs:', error);
+      throw new BadRequestException('Failed to fetch flagged songs');
     }
   }
 
@@ -361,8 +581,11 @@ export class SongsService {
   async advancedSearchSongs(
     options: {
       query?: string;
+      search?: string;
       sort?: string;
+      sortBy?: string;
       order?: string;
+      sortOrder?: string;
       artist?: string;
       genre?: string;
       visibility?: string;
@@ -372,36 +595,146 @@ export class SongsService {
       maxDuration?: number;
     } = {},
   ) {
-    // Ignore all params and just return the latest public songs for frontend testing
-    const filter: any = { visibility: 'PUBLIC' };
-    const sort: [string, 1 | -1][] = [['createdAt', -1]];
-    const limit = 20;
     try {
-      const songs = await this.songModel
-        .find(filter)
-        .sort(sort)
-        .limit(limit)
-        .populate('userId', '_id name username profilePicture')
-        .lean();
+      // Build filter object
+      const filter: any = {};
 
-      // Map the results to ensure consistent field naming between frontend and backend
+      // Set visibility filter
+      if (options.visibility) {
+        filter.visibility = options.visibility;
+      } else {
+        filter.visibility = 'PUBLIC'; // Default to public only
+      }
+
+      // Text search in title, artist, or album
+      const searchTerm = options.search || options.query;
+      if (searchTerm && searchTerm.trim()) {
+        const searchRegex = new RegExp(searchTerm.trim(), 'i');
+        filter.$or = [
+          { title: searchRegex },
+          { artist: searchRegex },
+          { album: searchRegex },
+        ];
+      } else {
+        console.log('No search term provided, skipping search filter');
+      }
+
+      // Artist filter
+      if (options.artist && options.artist.trim()) {
+        const artistRegex = new RegExp(options.artist.trim(), 'i');
+        filter.artist = artistRegex;
+      }
+
+      // Duration filters
+      if (options.minDuration && options.minDuration > 0) {
+        filter.duration = { ...filter.duration, $gte: options.minDuration };
+      }
+      if (options.maxDuration && options.maxDuration > 0) {
+        filter.duration = { ...filter.duration, $lte: options.maxDuration };
+      }
+
+      // Pagination
+      const page = Math.max(1, parseInt(String(options.page)) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(options.limit)) || 20),
+      );
+      const skip = (page - 1) * limit;
+
+      // Sorting
+      let sortBy = options.sortBy || options.sort || 'uploadDate';
+      let sortOrder = options.sortOrder || options.order || 'desc';
+
+      // Map frontend sort fields to backend fields
+      const sortFieldMap: { [key: string]: string } = {
+        uploadDate: 'createdAt',
+        title: 'title',
+        playCount: 'playCount',
+        likes: 'likeCount',
+        duration: 'duration',
+      };
+
+      const actualSortField = sortFieldMap[sortBy] || 'createdAt';
+      const sortDirection = sortOrder === 'asc' ? 1 : -1;
+
+      let query = this.songModel
+        .find(filter)
+        .populate('userId', '_id name username profilePicture')
+        .sort({ [actualSortField]: sortDirection })
+        .skip(skip)
+        .limit(limit);
+
+      if (options.genre && options.genre !== 'all') {
+        console.log('Genre filtering requested for genre:', options.genre);
+        // Use a more direct approach for now
+        const genreSongs = await this.songModel.db
+          .collection('genresongs')
+          .find({
+            genreId: new this.songModel.base.Types.ObjectId(options.genre),
+          })
+          .toArray();
+
+        const songIds = genreSongs.map((gs) => gs.songId);
+
+        if (songIds.length > 0) {
+          filter._id = { $in: songIds };
+          query = this.songModel
+            .find(filter)
+            .populate('userId', '_id name username profilePicture')
+            .sort({ [actualSortField]: sortDirection })
+            .skip(skip)
+            .limit(limit);
+        } else {
+          // No songs found for this genre
+          return {
+            success: true,
+            data: [],
+            total: 0,
+            page,
+            limit,
+          };
+        }
+      }
+
+      const songs = await query.lean();
+
+      // Get total count for pagination
+      const countFilter = { ...filter };
+      delete countFilter._id; // Remove _id filter for count if it was added for genre filtering
+      let total = 0;
+
+      if (options.genre && options.genre !== 'all') {
+        // Count with genre filter
+        const genreSongs = await this.songModel.db
+          .collection('genresongs')
+          .find({
+            genreId: new this.songModel.base.Types.ObjectId(options.genre),
+          })
+          .toArray();
+        const songIds = genreSongs.map((gs) => gs.songId);
+        if (songIds.length > 0) {
+          total = await this.songModel.countDocuments({
+            ...countFilter,
+            _id: { $in: songIds },
+          });
+        }
+      } else {
+        total = await this.songModel.countDocuments(countFilter);
+      }
+
+      // Map the results to ensure consistent field naming
       const mappedSongs = songs.map((song) => ({
         ...song,
-        coverImage: song.thumbnail, // Map thumbnail to coverImage for frontend compatibility
+        cover: song.thumbnail || song.cover, // Use thumbnail as cover
       }));
 
-      // Total count for pagination
-      const total = await this.songModel.countDocuments(filter);
-
-      let a = {
+      return {
         success: true,
         data: mappedSongs,
         total,
-        page: 1,
+        page,
         limit,
       };
-      console.log(a);
-      return a;
     } catch (error) {
       console.error('Error in advanced search:', error);
       return {

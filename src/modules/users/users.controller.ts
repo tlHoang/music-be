@@ -10,7 +10,12 @@ import {
   ParseIntPipe,
   Req,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from '@/modules/users/users.service';
 import { CreateUserDto } from '@/modules/users/dto/create-user.dto';
 import { UpdateUserDto } from '@/modules/users/dto/update-user.dto';
@@ -20,11 +25,15 @@ import { Request } from 'express';
 import { Public } from '@/common/decorators/public.decorator';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
+import { FirebaseService } from '@/modules/firebase/firebase.service';
 
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly userService: UsersService) {}
+  constructor(
+    private readonly userService: UsersService,
+    private readonly firebaseService: FirebaseService,
+  ) {}
 
   @Post()
   async create(@Body() createUserDto: CreateUserDto) {
@@ -118,12 +127,69 @@ export class UsersController {
   ) {
     return this.userService.updateStatus(id, body.status);
   }
-
   @Patch(':id/role')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
   async updateRole(@Param('id') id: string, @Body() body: { role: string }) {
     return this.userService.updateRole(id, body.role);
+  }
+
+  @Post(':id/avatar')
+  @UseInterceptors(FileInterceptor('avatar'))
+  async uploadAvatar(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() request: Request,
+  ) {
+    if (!file) {
+      throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      // Extract the authenticated user's ID from the JWT token
+      const token = request.headers.authorization?.split(' ')[1];
+      if (!token) {
+        throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+      }
+
+      const decoded = this.userService.decodeToken(token);
+      const authenticatedUserId = decoded?.sub;
+
+      // Check if user is updating their own profile or is an admin
+      if (authenticatedUserId !== id) {
+        // Check if user has admin role
+        const user = await this.userService.findOne(authenticatedUserId);
+        if (!user || user.role !== 'ADMIN') {
+          throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+        }
+      }
+
+      // Check if user exists
+      const targetUser = await this.userService.findOne(id);
+      if (!targetUser) {
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
+
+      // Upload to Firebase Storage
+      const avatarUrl = await this.firebaseService.uploadFile(file, 'covers');
+
+      // Update user with avatar URL
+      const updatedUser = await this.userService.update(id, {
+        profilePicture: avatarUrl,
+      });
+
+      return {
+        statusCode: 200,
+        message: 'Avatar uploaded successfully',
+        data: updatedUser,
+      };
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      throw new HttpException(
+        'Failed to upload avatar',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Delete(':id')

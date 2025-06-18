@@ -10,6 +10,7 @@ import {
   UploadedFile,
   Req,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import {
   FileInterceptor,
@@ -19,6 +20,8 @@ import { UploadedFiles } from '@nestjs/common';
 import { SongsService } from './songs.service';
 import { CreateSongDto } from './dto/create-song.dto';
 import { UpdateSongDto } from './dto/update-song.dto';
+import { CreateFlagReportDto } from './dto/create-flag-report.dto';
+import { ReviewFlagReportDto } from './dto/review-flag-report.dto';
 import { FirebaseService } from '@/modules/firebase/firebase.service';
 import { Genre } from '@/modules/genres/schemas/genre.schema';
 // import * as mm from 'music-metadata';
@@ -49,6 +52,7 @@ export class SongsController {
   }
 
   @Get()
+  @Public()
   async findAll() {
     const songs = await this.songsService.findAll();
     // For each song, get signed cover URL if present
@@ -67,7 +71,7 @@ export class SongsController {
   @Get('all')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
-  findAllForAdmin() {
+  async findAllForAdmin() {
     return this.songsService.findAllForAdmin();
   }
 
@@ -148,25 +152,68 @@ export class SongsController {
   @Public()
   @Get('search')
   async searchSongs(@Req() request: Request) {
+    console.log('=== CONTROLLER SEARCH ENDPOINT HIT ===');
+    console.log('Request URL:', request.url);
+    console.log('Query params:', request.query);
+
     // Restore param-based logic: use query params for searching/filtering
     const query = request.query;
     console.log('query: ', query);
-    return this.songsService.advancedSearchSongs(query);
+    const result = await this.songsService.advancedSearchSongs(query);
+
+    // Process signed URLs for covers if the search was successful
+    if (result.success && 'data' in result && result.data) {
+      const songsWithSignedCovers = await Promise.all(
+        result.data.map(async (song) => {
+          let cover = song.cover;
+          if (cover && cover.includes('storage.googleapis.com')) {
+            try {
+              cover = await this.firebaseService.getSignedUrl(cover);
+            } catch (error) {
+              console.error('Error getting signed URL for cover:', error);
+              // Keep original URL if signing fails
+            }
+          }
+          return { ...song, cover };
+        }),
+      );
+
+      return {
+        ...result,
+        data: songsWithSignedCovers,
+      };
+    }
+
+    return result;
   }
 
   @Get(':id')
+  @Public()
   async findOne(@Param('id') id: string) {
     const song = await this.songsService.findOne(id);
-    if (!song) return null;
+    if (!song) {
+      return {
+        success: false,
+        message: 'Song not found',
+        statusCode: 404,
+      };
+    }
+
     // Get signed URL for cover if present
     let cover = song.cover;
     if (cover && cover.includes('storage.googleapis.com')) {
       cover = await this.firebaseService.getSignedUrl(cover);
     }
-    return { ...song.toObject(), cover };
+
+    return {
+      success: true,
+      data: { ...song.toObject(), cover },
+      statusCode: 200,
+    };
   }
 
   @Patch(':id/plays')
+  @Public()
   async incrementPlays(@Param('id') id: string) {
     return this.songsService.incrementPlays(id);
   }
@@ -325,6 +372,7 @@ export class SongsController {
    * Returns: { audioUrl: string }
    */
   @Get(':id/audio-url')
+  @Public()
   async getAudioUrl(@Param('id') id: string) {
     const song = await this.songsService.findOne(id);
     if (!song) {
@@ -337,5 +385,79 @@ export class SongsController {
     }
     // Otherwise, return the original URL
     return { audioUrl: song.audioUrl };
+  }
+
+  // User flag reporting endpoints
+  @Post(':id/report')
+  async reportSong(
+    @Param('id') id: string,
+    @Body() createFlagReportDto: CreateFlagReportDto,
+    @Req() req: Request,
+  ) {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return { success: false, message: 'Access token required' };
+    }
+
+    try {
+      const decoded = this.jwtService.verify(token);
+      return await this.songsService.reportSong(
+        id,
+        decoded.sub,
+        createFlagReportDto,
+      );
+    } catch (error) {
+      return { success: false, message: 'Invalid token' };
+    }
+  }
+
+  @Get('admin/flag-reports')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async getFlagReports(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+    @Query('status') status?: string,
+  ) {
+    return this.songsService.getFlagReports(
+      parseInt(page),
+      parseInt(limit),
+      status,
+    );
+  }
+
+  @Patch('admin/flag-reports/:reportId/review')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async reviewFlagReport(
+    @Param('reportId') reportId: string,
+    @Body() reviewDto: ReviewFlagReportDto,
+    @Req() req: Request,
+  ) {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return { success: false, message: 'Access token required' };
+    }
+
+    try {
+      const decoded = this.jwtService.verify(token);
+      return await this.songsService.reviewFlagReport(
+        reportId,
+        decoded.sub,
+        reviewDto,
+      );
+    } catch (error) {
+      return { success: false, message: 'Invalid token' };
+    }
+  }
+
+  @Get('admin/flagged')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async getFlaggedSongs(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+  ) {
+    return this.songsService.getFlaggedSongs(parseInt(page), parseInt(limit));
   }
 }

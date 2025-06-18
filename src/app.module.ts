@@ -17,6 +17,7 @@ import { GenresModule } from './modules/genres/genres.module';
 import { LikesModule } from './modules/likes/likes.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { FollowersModule } from './modules/followers/followers.module';
+import { FollowPlaylistModule } from './modules/follow-playlist/follow-playlist.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { HealthCheckModule } from './modules/health-check/health-check.module';
 import { PlaybackModule } from './modules/playback/playback.module';
@@ -71,6 +72,7 @@ import { PlaybackModule } from './modules/playback/playback.module';
     LikesModule,
     CommentsModule,
     FollowersModule,
+    FollowPlaylistModule,
     AdminModule,
     HealthCheckModule,
     PlaybackModule,

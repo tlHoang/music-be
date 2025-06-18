@@ -18,6 +18,8 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
 import { Follower } from '../followers/schemas/follower.schema';
 import { Song } from '../songs/schemas/song.schema';
+import { Playlist } from '../playlists/schemas/playlist.schema';
+import { FirebaseService } from '../firebase/firebase.service';
 
 @Injectable()
 export class UsersService {
@@ -28,9 +30,12 @@ export class UsersService {
     private readonly followerModel: Model<Follower>,
     @InjectModel(Song.name)
     private readonly songModel: Model<Song>,
+    @InjectModel(Playlist.name)
+    private readonly playlistModel: Model<Playlist>,
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly firebaseService: FirebaseService,
   ) {}
 
   async isEmailExist(email: string) {
@@ -58,6 +63,7 @@ export class UsersService {
     }
     const user = await this.userModel.create({
       ...createUserDto,
+      status: createUserDto.status || 'ACTIVE', // Default to ACTIVE for admin-created users
       password: await hashPasswordHelper(createUserDto.password),
     });
     return {
@@ -128,6 +134,7 @@ export class UsersService {
       email,
       password: hashedPassword,
       isActive: false,
+      status: 'PENDING',
       codeId: uuidv4(),
       codeExpired: dayjs().add(
         // 1,
@@ -186,6 +193,7 @@ export class UsersService {
     }
 
     userRecord.isActive = true;
+    userRecord.status = 'ACTIVE';
     userRecord.set('codeId', undefined, { strict: false });
     userRecord.set('codeExpired', undefined, { strict: false });
     await userRecord.save();
@@ -262,7 +270,7 @@ export class UsersService {
 
     const users = await this.userModel
       .find(query)
-      .select('_id name email avatar')
+      .select('_id name email profilePicture')
       .limit(20)
       .lean();
 
@@ -296,8 +304,26 @@ export class UsersService {
           );
         }
 
+        // Process signed URL for profile picture/avatar
+        let profilePicture = user.profilePicture;
+        if (
+          profilePicture &&
+          profilePicture.includes('storage.googleapis.com')
+        ) {
+          try {
+            profilePicture =
+              await this.firebaseService.getSignedUrl(profilePicture);
+          } catch (error) {
+            console.error(
+              'Error getting signed URL for user profilePicture:',
+              error,
+            );
+          }
+        }
+
         return {
           ...user,
+          profilePicture,
           followersCount,
           tracksCount,
           isFollowing,
@@ -346,9 +372,22 @@ export class UsersService {
       );
     }
 
+    // Process signed URL for profile picture
+    let profilePicture = user.profilePicture;
+    if (profilePicture && profilePicture.includes('storage.googleapis.com')) {
+      try {
+        profilePicture =
+          await this.firebaseService.getSignedUrl(profilePicture);
+      } catch (error) {
+        console.error('Error getting signed URL for profile picture:', error);
+        // Keep original URL if signing fails
+      }
+    }
+
     return {
       data: {
         ...user,
+        profilePicture,
         followersCount,
         followingCount,
         isFollowing,
@@ -375,23 +414,24 @@ export class UsersService {
       // For each user, get additional stats like track count and playlist count
       const enhancedUsers = await Promise.all(
         users.map(async (user) => {
-          // Get tracks count
+          // Get tracks count (convert ObjectId to string for proper comparison)
           const trackCount = await this.songModel.countDocuments({
-            userId: user._id,
+            userId: user._id.toString(),
           });
 
-          // Get playlists count - use aggregation to get playlists count if you have a playlist model
-          // As a placeholder, I'll set it to 0 since we don't have direct access to the playlist model here
-          const playlistCount = 0; // Replace with actual count when possible
+          // Get playlists count (convert ObjectId to string for proper comparison)
+          const playlistCount = await this.playlistModel.countDocuments({
+            userId: user._id.toString(),
+          });
 
-          // Get followers count
+          // Get followers count (convert ObjectId to string for proper comparison)
           const followerCount = await this.followerModel.countDocuments({
-            followingId: user._id,
+            followingId: user._id.toString(),
           });
 
-          // Get following count
+          // Get following count (convert ObjectId to string for proper comparison)
           const followingCount = await this.followerModel.countDocuments({
-            followerId: user._id,
+            followerId: user._id.toString(),
           });
 
           return {

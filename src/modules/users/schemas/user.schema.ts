@@ -27,9 +27,11 @@ export class User extends Document {
 
   @Prop({ default: 'USER' })
   role: string;
-
   @Prop({ default: false })
   isActive: boolean;
+
+  @Prop({ default: 'PENDING', enum: ['ACTIVE', 'SUSPENDED', 'PENDING'] })
+  status: string;
 
   @Prop()
   codeId: string;

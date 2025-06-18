@@ -11,7 +11,10 @@ import {
   Query,
   HttpStatus,
   HttpException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { PlaylistsService } from './playlists.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
@@ -22,6 +25,7 @@ import { Public } from '@/common/decorators/public.decorator';
 import { ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { isValidObjectId } from 'mongoose';
+import { FirebaseService } from '@/modules/firebase/firebase.service';
 
 @ApiTags('playlists')
 @Controller('playlists')
@@ -29,6 +33,7 @@ export class PlaylistsController {
   constructor(
     private readonly playlistsService: PlaylistsService,
     private readonly jwtService: JwtService,
+    private readonly firebaseService: FirebaseService,
   ) {}
 
   @Post()
@@ -37,11 +42,16 @@ export class PlaylistsController {
     createPlaylistDto.userId = req.user._id;
     return this.playlistsService.create(createPlaylistDto);
   }
-
   @Public()
   @Get()
-  findAll() {
-    return this.playlistsService.findAll();
+  findAll(
+    @Query('visibility') visibility?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.playlistsService.findAll(
+      visibility,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   @Public()
@@ -49,14 +59,12 @@ export class PlaylistsController {
   getFeaturedPlaylists() {
     return this.playlistsService.getFeaturedPlaylists();
   }
-
   @Public()
   @Get('system-check')
   async systemCheck() {
     try {
-      const playlistCount = await this.playlistsService
-        .findAll()
-        .then((playlists) => playlists.length);
+      const result = await this.playlistsService.findAll();
+      const playlistCount = result.data ? result.data.length : 0;
 
       return {
         success: true,
@@ -384,12 +392,53 @@ export class PlaylistsController {
 
     return result;
   }
-
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
   @Patch(':id/featured')
   setFeatured(@Param('id') id: string, @Body() body: { isFeatured: boolean }) {
     return this.playlistsService.setFeatured(id, body.isFeatured);
+  }
+
+  @Post(':id/cover')
+  @UseInterceptors(FileInterceptor('cover'))
+  async uploadCover(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req,
+  ) {
+    if (!file) {
+      throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      // Check if user owns the playlist
+      const playlist = await this.playlistsService.findOne(id);
+      if (!playlist) {
+        throw new HttpException('Playlist not found', HttpStatus.NOT_FOUND);
+      }
+
+      if (playlist.userId.toString() !== req.user._id) {
+        throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+      } // Upload to Firebase Storage
+      const coverUrl = await this.firebaseService.uploadFile(file, 'covers');
+
+      // Update playlist with cover URL
+      const updatedPlaylist = await this.playlistsService.update(id, {
+        cover: coverUrl,
+      });
+
+      return {
+        statusCode: 200,
+        message: 'Cover uploaded successfully',
+        data: updatedPlaylist,
+      };
+    } catch (error) {
+      console.error('Error uploading playlist cover:', error);
+      throw new HttpException(
+        'Failed to upload cover',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Delete(':id')

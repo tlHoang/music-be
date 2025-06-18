@@ -12,6 +12,8 @@ import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { ReorderSongsDto } from './dto/reorder-songs.dto';
 import { Song } from '../songs/schemas/song.schema';
 import { User } from '../users/schemas/user.schema';
+import { FollowPlaylist } from '../follow-playlist/schemas/follow-playlist.schema';
+import { FirebaseService } from '../firebase/firebase.service';
 
 @Injectable()
 export class PlaylistsService {
@@ -20,6 +22,9 @@ export class PlaylistsService {
     @InjectModel(Playlist.name) private readonly playlistModel: Model<Playlist>,
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(Song.name) private readonly songModel: Model<Song>,
+    @InjectModel(FollowPlaylist.name)
+    private readonly followPlaylistModel: Model<FollowPlaylist>,
+    private readonly firebaseService: FirebaseService,
   ) {
     // Verify DB connection on service init
     this.checkDatabaseConnection();
@@ -40,9 +45,49 @@ export class PlaylistsService {
   create(createPlaylistDto: CreatePlaylistDto) {
     return this.playlistModel.create(createPlaylistDto);
   }
+  async findAll(visibility?: string, limit?: number) {
+    // Build query filter
+    const query: any = {};
+    if (visibility) {
+      query.visibility = visibility.toUpperCase();
+    }
 
-  findAll() {
-    return this.playlistModel.find().exec();
+    // Build the query with optional population and limiting
+    let queryBuilder = this.playlistModel
+      .find(query)
+      .populate('userId', '_id name username profilePicture')
+      .sort({ createdAt: -1 });
+
+    if (limit) {
+      queryBuilder = queryBuilder.limit(limit);
+    }
+
+    const playlists = await queryBuilder.exec();
+
+    // Process signed URLs for covers
+    const playlistsWithSignedCovers = await Promise.all(
+      playlists.map(async (playlist) => {
+        let cover = playlist.cover;
+        if (cover && cover.includes('storage.googleapis.com')) {
+          try {
+            cover = await this.firebaseService.getSignedUrl(cover);
+          } catch (error) {
+            console.error(
+              'Error getting signed URL for playlist cover:',
+              error,
+            );
+            // Keep original URL if signing fails
+          }
+        }
+        return { ...playlist.toObject(), cover };
+      }),
+    );
+
+    return {
+      success: true,
+      statusCode: 200,
+      data: playlistsWithSignedCovers,
+    };
   }
 
   findOne(id: string) {
@@ -58,7 +103,6 @@ export class PlaylistsService {
   remove(id: string) {
     return this.playlistModel.findByIdAndDelete(id).exec();
   }
-
   async findAllForAdmin() {
     try {
       const playlists = await this.playlistModel
@@ -67,13 +111,21 @@ export class PlaylistsService {
         .populate('userId', '_id name username email profilePicture')
         .lean();
 
-      // Enhance playlists with song count information
-      const enhancedPlaylists = playlists.map((playlist) => {
-        return {
-          ...playlist,
-          songCount: playlist.songs ? playlist.songs.length : 0,
-        };
-      });
+      // Enhance playlists with song count and followers count information
+      const enhancedPlaylists = await Promise.all(
+        playlists.map(async (playlist) => {
+          // Get followers count for this playlist
+          const followersCount = await this.followPlaylistModel.countDocuments({
+            playlistId: playlist._id,
+          });
+
+          return {
+            ...playlist,
+            songCount: playlist.songs ? playlist.songs.length : 0,
+            followersCount,
+          };
+        }),
+      );
 
       return {
         success: true,
@@ -164,9 +216,7 @@ export class PlaylistsService {
         this.logger.debug(
           `Fallback search found ${playlists.length} playlists for string userId ${userId}`,
         );
-      }
-
-      // Log a sample playlist for debugging
+      } // Log a sample playlist for debugging
       if (playlists.length > 0) {
         this.logger.debug(
           'Sample playlist songs:',
@@ -184,9 +234,28 @@ export class PlaylistsService {
         }
       }
 
+      // Process signed URLs for covers
+      const playlistsWithSignedCovers = await Promise.all(
+        playlists.map(async (playlist) => {
+          let cover = playlist.cover;
+          if (cover && cover.includes('storage.googleapis.com')) {
+            try {
+              cover = await this.firebaseService.getSignedUrl(cover);
+            } catch (error) {
+              console.error(
+                'Error getting signed URL for playlist cover:',
+                error,
+              );
+              // Keep original URL if signing fails
+            }
+          }
+          return { ...playlist, cover };
+        }),
+      );
+
       return {
         success: true,
-        data: playlists,
+        data: playlistsWithSignedCovers,
       };
     } catch (error) {
       console.error('Error fetching user playlists:', error);
@@ -345,7 +414,6 @@ export class PlaylistsService {
       };
     }
   }
-
   async getFeaturedPlaylists() {
     try {
       const playlists = await this.playlistModel
@@ -361,18 +429,38 @@ export class PlaylistsService {
 
       this.logger.debug(`Found ${playlists.length} featured playlists`);
 
+      // Process signed URLs for covers
+      const playlistsWithSignedCovers = await Promise.all(
+        playlists.map(async (playlist) => {
+          let cover = playlist.cover;
+          if (cover && cover.includes('storage.googleapis.com')) {
+            try {
+              cover = await this.firebaseService.getSignedUrl(cover);
+            } catch (error) {
+              console.error(
+                'Error getting signed URL for playlist cover:',
+                error,
+              );
+              // Keep original URL if signing fails
+            }
+          }
+          return { ...playlist, cover };
+        }),
+      );
+
       // Log sample data for debugging
-      if (playlists.length > 0) {
+      if (playlistsWithSignedCovers.length > 0) {
         this.logger.debug('Sample featured playlist:', {
-          id: playlists[0]._id,
-          name: playlists[0].name,
-          songCount: playlists[0].songs?.length || 0,
+          id: playlistsWithSignedCovers[0]._id,
+          name: playlistsWithSignedCovers[0].name,
+          songCount: playlistsWithSignedCovers[0].songs?.length || 0,
+          cover: playlistsWithSignedCovers[0].cover ? 'Has cover' : 'No cover',
         });
       }
 
       return {
         success: true,
-        data: playlists,
+        data: playlistsWithSignedCovers,
       };
     } catch (error) {
       console.error('Error fetching featured playlists:', error);
@@ -433,18 +521,35 @@ export class PlaylistsService {
       this.logger.debug(
         `Playlist songs after population: Found ${populatedPlaylist.songs?.length || 0} songs`,
       );
-
       if (populatedPlaylist.songs?.length > 0) {
         // Log a sample song to check its structure
         this.logger.debug(
           'Sample song from playlist:',
           JSON.stringify(populatedPlaylist.songs[0]),
         );
+      } // Get followers count for this playlist
+      const followersCount = await this.followPlaylistModel.countDocuments({
+        playlistId: new Types.ObjectId(playlistId),
+      });
+
+      // Process signed URL for cover
+      let cover = populatedPlaylist.cover;
+      if (cover && cover.includes('storage.googleapis.com')) {
+        try {
+          cover = await this.firebaseService.getSignedUrl(cover);
+        } catch (error) {
+          console.error('Error getting signed URL for playlist cover:', error);
+          // Keep original URL if signing fails
+        }
       }
 
       return {
         success: true,
-        data: populatedPlaylist,
+        data: {
+          ...populatedPlaylist,
+          followersCount,
+          cover,
+        },
       };
     } catch (error) {
       console.error('Error fetching playlist details:', error);
@@ -522,9 +627,7 @@ export class PlaylistsService {
         this.logger.debug(
           `Fallback found ${playlists.length} playlists for string userId: ${userId}`,
         );
-      }
-
-      // Log sample data for debugging
+      } // Log sample data for debugging
       if (playlists.length > 0) {
         this.logger.debug('Sample playlist:', {
           id: playlists[0]._id,
@@ -541,9 +644,28 @@ export class PlaylistsService {
         }
       }
 
+      // Process signed URLs for covers
+      const playlistsWithSignedCovers = await Promise.all(
+        playlists.map(async (playlist) => {
+          let cover = playlist.cover;
+          if (cover && cover.includes('storage.googleapis.com')) {
+            try {
+              cover = await this.firebaseService.getSignedUrl(cover);
+            } catch (error) {
+              console.error(
+                'Error getting signed URL for playlist cover:',
+                error,
+              );
+              // Keep original URL if signing fails
+            }
+          }
+          return { ...playlist, cover };
+        }),
+      );
+
       return {
         success: true,
-        data: playlists,
+        data: playlistsWithSignedCovers,
       };
     } catch (error) {
       console.error('Error fetching user playlists:', error);
@@ -649,6 +771,60 @@ export class PlaylistsService {
         error: error.message,
         statusCode: 500, // Internal Server Error
       };
+    }
+  }
+
+  async getPlaylistWithFollowersCount(playlistId: string) {
+    try {
+      const playlist = await this.playlistModel
+        .findById(playlistId)
+        .populate('userId', '_id name username profilePicture')
+        .populate({
+          path: 'songs',
+          model: 'Song',
+          select: '_id title artist album duration coverImage audioUrl',
+        })
+        .lean();
+
+      if (!playlist) {
+        return {
+          success: false,
+          message: 'Playlist not found',
+          statusCode: 404,
+        };
+      }
+
+      // Get followers count
+      const followersCount = await this.followPlaylistModel.countDocuments({
+        playlistId: new Types.ObjectId(playlistId),
+      });
+
+      return {
+        success: true,
+        data: {
+          ...playlist,
+          followersCount,
+        },
+      };
+    } catch (error) {
+      console.error('Error getting playlist with followers count:', error);
+      return {
+        success: false,
+        message: 'Failed to get playlist details',
+        error: error.message,
+        statusCode: 500,
+      };
+    }
+  }
+
+  async getFollowersCount(playlistId: string): Promise<number> {
+    try {
+      return await this.followPlaylistModel.countDocuments({
+        playlistId: new Types.ObjectId(playlistId),
+      });
+    } catch (error) {
+      console.error('Error getting followers count:', error);
+      return 0;
     }
   }
 }

@@ -20,6 +20,9 @@ export class Playlist {
   @Prop({ default: false })
   isFeatured: boolean;
 
+  @Prop({ required: false })
+  cover?: string;
+
   // Timestamps added by the schema options, but need to be declared for TypeScript
   @Prop()
   createdAt: Date;

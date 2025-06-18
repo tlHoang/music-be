@@ -5,8 +5,13 @@ import { PlaylistsController } from './playlists.controller';
 import { Playlist, PlaylistSchema } from './schemas/playlist.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Song, SongSchema } from '../songs/schemas/song.schema';
+import {
+  FollowPlaylist,
+  FollowPlaylistSchema,
+} from '../follow-playlist/schemas/follow-playlist.schema';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { FirebaseModule } from '../firebase/firebase.module';
 
 @Module({
   imports: [
@@ -14,6 +19,7 @@ import { ConfigService } from '@nestjs/config';
       { name: Playlist.name, schema: PlaylistSchema },
       { name: User.name, schema: UserSchema },
       { name: Song.name, schema: SongSchema },
+      { name: FollowPlaylist.name, schema: FollowPlaylistSchema },
     ]),
     JwtModule.registerAsync({
       useFactory: async (configService: ConfigService) => ({
@@ -24,6 +30,7 @@ import { ConfigService } from '@nestjs/config';
       }),
       inject: [ConfigService],
     }),
+    FirebaseModule,
   ],
   controllers: [PlaylistsController],
   providers: [PlaylistsService],

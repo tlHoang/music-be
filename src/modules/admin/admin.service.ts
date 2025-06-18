@@ -4,7 +4,6 @@ import { Model } from 'mongoose';
 import { User } from '../users/schemas/user.schema';
 import { Song } from '../songs/schemas/song.schema';
 import { Playlist } from '../playlists/schemas/playlist.schema';
-import { Follower } from '../followers/schemas/follower.schema';
 
 @Injectable()
 export class AdminService {
@@ -12,7 +11,6 @@ export class AdminService {
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(Song.name) private readonly songModel: Model<Song>,
     @InjectModel(Playlist.name) private readonly playlistModel: Model<Playlist>,
-    @InjectModel(Follower.name) private readonly followerModel: Model<Follower>,
   ) {}
 
   async getStats() {
@@ -20,7 +18,10 @@ export class AdminService {
       // Get total counts
       const totalUsers = await this.userModel.countDocuments();
       const activeUsers = await this.userModel.countDocuments({
-        isActive: true,
+        $or: [
+          { status: 'ACTIVE' },
+          { status: { $exists: false }, isActive: true },
+        ],
       });
       const totalSongs = await this.songModel.countDocuments();
       const publicSongs = await this.songModel.countDocuments({
@@ -30,7 +31,6 @@ export class AdminService {
         visibility: 'PRIVATE',
       });
       const totalPlaylists = await this.playlistModel.countDocuments();
-      const totalFollowers = await this.followerModel.countDocuments();
 
       // Get new users in the past 7 days
       const sevenDaysAgo = new Date();
@@ -64,9 +64,7 @@ export class AdminService {
           },
         },
         { $sort: { _id: 1 } },
-      ]);
-
-      // Get most active users (with most songs)
+      ]); // Get most active users (with most songs)
       const mostActiveUsers = await this.userModel.aggregate([
         {
           $lookup: {
@@ -99,7 +97,6 @@ export class AdminService {
             publicSongs,
             privateSongs,
             totalPlaylists,
-            totalFollowers,
             newUsers,
             newSongs,
           },
