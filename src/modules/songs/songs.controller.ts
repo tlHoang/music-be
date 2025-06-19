@@ -205,9 +205,12 @@ export class SongsController {
       cover = await this.firebaseService.getSignedUrl(cover);
     }
 
+    // Handle both Mongoose documents and plain objects
+    const songData = typeof song.toObject === 'function' ? song.toObject() : song;
+
     return {
       success: true,
-      data: { ...song.toObject(), cover },
+      data: { ...songData, cover },
       statusCode: 200,
     };
   }
@@ -304,8 +307,14 @@ export class SongsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateSongDto: UpdateSongDto) {
-    return this.songsService.update(id, updateSongDto);
+  async update(@Param('id') id: string, @Body() updateSongDto: UpdateSongDto) {
+    console.log(`Updating song ${id} with DTO:`, updateSongDto);
+    const updatedSong = await this.songsService.update(id, updateSongDto);
+    return {
+      statusCode: 200,
+      message: 'Song updated successfully',
+      data: updatedSong,
+    };
   }
 
   @Patch(':id/flag')
@@ -392,23 +401,17 @@ export class SongsController {
   async reportSong(
     @Param('id') id: string,
     @Body() createFlagReportDto: CreateFlagReportDto,
-    @Req() req: Request,
+    @Req() req: any,
   ) {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return { success: false, message: 'Access token required' };
-    }
-
-    try {
-      const decoded = this.jwtService.verify(token);
-      return await this.songsService.reportSong(
-        id,
-        decoded.sub,
-        createFlagReportDto,
-      );
-    } catch (error) {
-      return { success: false, message: 'Invalid token' };
-    }
+    // The user is already authenticated by the global JwtAuthGuard
+    // and is available in req.user
+    const userId = req.user._id;
+    
+    return await this.songsService.reportSong(
+      id,
+      userId,
+      createFlagReportDto,
+    );
   }
 
   @Get('admin/flag-reports')
@@ -432,23 +435,17 @@ export class SongsController {
   async reviewFlagReport(
     @Param('reportId') reportId: string,
     @Body() reviewDto: ReviewFlagReportDto,
-    @Req() req: Request,
+    @Req() req: any,
   ) {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return { success: false, message: 'Access token required' };
-    }
-
-    try {
-      const decoded = this.jwtService.verify(token);
-      return await this.songsService.reviewFlagReport(
-        reportId,
-        decoded.sub,
-        reviewDto,
-      );
-    } catch (error) {
-      return { success: false, message: 'Invalid token' };
-    }
+    // The admin user is already authenticated by the global JwtAuthGuard
+    // and is available in req.user
+    const adminId = req.user._id;
+    
+    return await this.songsService.reviewFlagReport(
+      reportId,
+      adminId,
+      reviewDto,
+    );
   }
 
   @Get('admin/flagged')

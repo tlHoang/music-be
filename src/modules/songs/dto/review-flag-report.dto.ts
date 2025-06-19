@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, MaxLength } from 'class-validator';
+import { IsString, IsEnum, IsOptional, MaxLength, IsBoolean } from 'class-validator';
 
 export class ReviewFlagReportDto {
   @IsEnum(['REVIEWED', 'DISMISSED'])
@@ -10,6 +10,6 @@ export class ReviewFlagReportDto {
   reviewNotes?: string;
 
   @IsOptional()
-  @IsString()
+  @IsBoolean()
   flagSong?: boolean; // Whether to flag the song as inappropriate
 }
