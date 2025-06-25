@@ -1,4 +1,10 @@
-import { IsString, IsEnum, IsOptional, MaxLength, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsOptional,
+  MaxLength,
+  IsBoolean,
+} from 'class-validator';
 
 export class ReviewFlagReportDto {
   @IsEnum(['REVIEWED', 'DISMISSED'])

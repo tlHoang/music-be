@@ -39,6 +39,12 @@ export class User extends Document {
   @Prop()
   codeExpired: Date;
 
+  @Prop()
+  resetCode: string;
+
+  @Prop()
+  resetCodeExpired: Date;
+
   @Prop({ required: true, unique: true })
   username: string;
 

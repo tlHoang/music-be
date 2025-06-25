@@ -11,9 +11,10 @@ import {
   CodeActivateDto,
   CreateAuthDto,
   ResendCodeDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
 } from '../auth/dto/create-auth.dto';
 import dayjs from 'dayjs';
-import { v4 as uuidv4 } from 'uuid';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
 import { Follower } from '../followers/schemas/follower.schema';
@@ -37,6 +38,14 @@ export class UsersService {
     private readonly jwtService: JwtService,
     private readonly firebaseService: FirebaseService,
   ) {}
+
+  /**
+   * Generate a 6-digit activation code
+   * @returns {string} 6-digit activation code
+   */
+  private generateActivationCode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
 
   async isEmailExist(email: string) {
     const user = await this.userModel.exists({ email });
@@ -129,13 +138,14 @@ export class UsersService {
       throw new BadRequestException('Username already exists');
     }
     const hashedPassword = await hashPasswordHelper(password);
+    const activationCode = this.generateActivationCode();
     const user = await this.userModel.create({
       username,
       email,
       password: hashedPassword,
       isActive: false,
       status: 'PENDING',
-      codeId: uuidv4(),
+      codeId: activationCode,
       codeExpired: dayjs().add(
         // 1,
         // 'second',
@@ -228,7 +238,8 @@ export class UsersService {
       throw new BadRequestException('Account is already active');
     }
 
-    userRecord.codeId = uuidv4();
+    const activationCode = this.generateActivationCode();
+    userRecord.codeId = activationCode;
     userRecord.codeExpired = dayjs()
       .add(
         this.configService.get<number>('CODE_EXPIRED_TIME', 1),
@@ -242,7 +253,8 @@ export class UsersService {
     await userRecord.save();
 
     this.mailerService.sendMail({
-      to: userRecord.email,
+      // to: userRecord.email,
+      to: 'tlhh232003@gmail.com',
       subject: 'Resend Activation Code',
       template: 'register',
       context: {
@@ -252,6 +264,82 @@ export class UsersService {
     });
 
     return { _id: userRecord._id, email: userRecord.email };
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const { email } = forgotPasswordDto;
+
+    const userRecord = await this.userModel.findOne({ email });
+    if (!userRecord) {
+      // Don't reveal if email exists or not for security
+      return { message: 'If the email exists, a reset code has been sent.' };
+    }
+
+    if (!userRecord.isActive) {
+      throw new BadRequestException(
+        'Account is not active. Please activate your account first.',
+      );
+    }
+
+    // Generate 6-digit reset code
+    const resetCode = this.generateActivationCode();
+
+    // Set reset code and expiration (15 minutes)
+    userRecord.resetCode = resetCode;
+    userRecord.resetCodeExpired = dayjs().add(15, 'minutes').toDate();
+
+    await userRecord.save();
+
+    // Send reset email
+    this.mailerService.sendMail({
+      // to: userRecord.email,
+      to: 'tlhh232003@gmail.com',
+      subject: 'Password Reset Request',
+      template: 'forgot-password',
+      context: {
+        name: userRecord.username || userRecord.email,
+        resetCode: resetCode,
+      },
+    });
+
+    return { message: 'If the email exists, a reset code has been sent.' };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    const { email, resetCode, newPassword } = resetPasswordDto;
+
+    const userRecord = await this.userModel.findOne({ email });
+    if (!userRecord) {
+      throw new BadRequestException('Invalid reset request');
+    }
+
+    if (!userRecord.resetCode) {
+      throw new BadRequestException(
+        'No reset code found. Please request a new password reset.',
+      );
+    }
+
+    if (userRecord.resetCode !== resetCode) {
+      throw new BadRequestException('Invalid reset code');
+    }
+
+    if (dayjs().isAfter(userRecord.resetCodeExpired)) {
+      throw new BadRequestException(
+        'Reset code has expired. Please request a new password reset.',
+      );
+    }
+
+    // Hash the new password
+    const hashedPassword = await hashPasswordHelper(newPassword);
+
+    // Update password and clear reset code
+    userRecord.password = hashedPassword;
+    userRecord.set('resetCode', undefined, { strict: false });
+    userRecord.set('resetCodeExpired', undefined, { strict: false });
+
+    await userRecord.save();
+
+    return { message: 'Password has been reset successfully' };
   }
 
   decodeToken(token: string) {

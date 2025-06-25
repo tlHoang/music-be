@@ -36,3 +36,23 @@ export class ResendCodeDto {
   @IsEmail()
   email?: string;
 }
+
+export class ForgotPasswordDto {
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
+
+  @IsNotEmpty()
+  @IsString()
+  resetCode: string;
+
+  @IsNotEmpty()
+  // @IsStrongPassword()
+  newPassword: string;
+}

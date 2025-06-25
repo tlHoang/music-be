@@ -206,7 +206,8 @@ export class SongsController {
     }
 
     // Handle both Mongoose documents and plain objects
-    const songData = typeof song.toObject === 'function' ? song.toObject() : song;
+    const songData =
+      typeof song.toObject === 'function' ? song.toObject() : song;
 
     return {
       success: true,
@@ -406,12 +407,8 @@ export class SongsController {
     // The user is already authenticated by the global JwtAuthGuard
     // and is available in req.user
     const userId = req.user._id;
-    
-    return await this.songsService.reportSong(
-      id,
-      userId,
-      createFlagReportDto,
-    );
+
+    return await this.songsService.reportSong(id, userId, createFlagReportDto);
   }
 
   @Get('admin/flag-reports')
@@ -440,7 +437,7 @@ export class SongsController {
     // The admin user is already authenticated by the global JwtAuthGuard
     // and is available in req.user
     const adminId = req.user._id;
-    
+
     return await this.songsService.reviewFlagReport(
       reportId,
       adminId,

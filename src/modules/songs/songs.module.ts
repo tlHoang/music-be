@@ -9,12 +9,16 @@ import { JwtModule } from '@nestjs/jwt';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Follower, FollowerSchema } from '../followers/schemas/follower.schema';
 import { Genre, GenreSchema } from '../genres/schemas/genre.schema';
-import { GenreSong, GenreSongSchema } from '../genre-song/schemas/genre-song.schema';
+import {
+  GenreSong,
+  GenreSongSchema,
+} from '../genre-song/schemas/genre-song.schema';
 import { GenreSongModule } from '../genre-song/genre-song.module';
 import { GenresModule } from '../genres/genres.module';
 
 @Module({
-  imports: [    MongooseModule.forFeature([
+  imports: [
+    MongooseModule.forFeature([
       { name: Song.name, schema: SongSchema },
       { name: FlagReport.name, schema: FlagReportSchema },
       { name: User.name, schema: UserSchema },

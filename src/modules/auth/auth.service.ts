@@ -7,6 +7,8 @@ import {
   CodeActivateDto,
   CreateAuthDto,
   ResendCodeDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
 } from './dto/create-auth.dto';
 
 @Injectable()
@@ -52,5 +54,13 @@ export class AuthService {
 
   resendCode(resendCodeDto: ResendCodeDto) {
     return this.usersService.resendCode(resendCodeDto);
+  }
+
+  forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    return this.usersService.forgotPassword(forgotPasswordDto);
+  }
+
+  resetPassword(resetPasswordDto: ResetPasswordDto) {
+    return this.usersService.resetPassword(resetPasswordDto);
   }
 }

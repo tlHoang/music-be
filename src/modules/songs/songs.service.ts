@@ -28,7 +28,8 @@ export class SongsService {
     private readonly flagReportModel: Model<FlagReport>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Follower.name) private readonly followerModel: Model<Follower>,
-    @InjectModel(GenreSong.name) private readonly genreSongModel: Model<GenreSong>,
+    @InjectModel(GenreSong.name)
+    private readonly genreSongModel: Model<GenreSong>,
     private readonly firebaseService: FirebaseService, // Inject FirebaseService
     private readonly genresService: GenresService, // Inject GenresService
   ) {}
@@ -49,14 +50,16 @@ export class SongsService {
       .find({ isFlagged: { $ne: true } }) // Exclude flagged tracks
       .populate('userId', 'username name')
       .exec();
-    
+
     console.log('=== FIND ALL GENRE DEBUG ===');
     console.log('Total songs found:', songs.length);
     console.log('First song raw genres:', songs[0]?.genres);
-    
+
     // Manually populate genres for all songs
-    const songsWithGenres = await this.populateGenresForSongs(songs.map(s => s.toObject()));
-    
+    const songsWithGenres = await this.populateGenresForSongs(
+      songs.map((s) => s.toObject()),
+    );
+
     return songsWithGenres.map((song) => {
       let artist = song.artist;
       const userObj: any = song.userId;
@@ -83,21 +86,21 @@ export class SongsService {
       .findOne({ _id: id, isFlagged: { $ne: true } }) // Exclude flagged tracks
       .populate('userId', '_id name username profilePicture email')
       .exec();
-    
+
     if (!song) {
       return null;
     }
-    
+
     console.log('=== TRACK DETAIL GENRE DEBUG ===');
     console.log('Track ID:', id);
     console.log('Raw song genres field:', song.genres);
-    
+
     // Manually populate genres for this single song
     const songObj = song.toObject();
     const [songWithGenres] = await this.populateGenresForSongs([songObj]);
-    
+
     console.log('Track with populated genres:', songWithGenres.genres);
-    
+
     return songWithGenres;
   }
 
@@ -151,10 +154,12 @@ export class SongsService {
       .populate('userId', 'username name')
       .sort({ uploadDate: -1 })
       .exec();
-    
+
     // Manually populate genres
-    const songsWithGenres = await this.populateGenresForSongs(songs.map(s => s.toObject()));
-    
+    const songsWithGenres = await this.populateGenresForSongs(
+      songs.map((s) => s.toObject()),
+    );
+
     return songsWithGenres.map((song) => {
       let artist = song.artist;
       const userObj: any = song.userId;
@@ -178,16 +183,20 @@ export class SongsService {
 
   async findPublicSongsByUser(userId: string, isOwner: boolean = false) {
     // If owner is viewing, return all songs. Otherwise, only return public songs
-    const query = isOwner ? { userId } : { userId, visibility: 'PUBLIC', isFlagged: { $ne: true } };
+    const query = isOwner
+      ? { userId }
+      : { userId, visibility: 'PUBLIC', isFlagged: { $ne: true } };
     const songs = await this.songModel
       .find(query)
       .populate('userId', 'username name')
       .sort({ uploadDate: -1 })
       .exec();
-    
+
     // Manually populate genres
-    const songsWithGenres = await this.populateGenresForSongs(songs.map(s => s.toObject()));
-    
+    const songsWithGenres = await this.populateGenresForSongs(
+      songs.map((s) => s.toObject()),
+    );
+
     return songsWithGenres.map((song) => {
       let artist = song.artist;
       const userObj: any = song.userId;
@@ -673,13 +682,21 @@ export class SongsService {
       }
 
       // Genre filter (for genres as array of strings)
-      if (options.genre && options.genre !== 'all' && /^[a-fA-F0-9]{24}$/.test(options.genre)) {
+      if (
+        options.genre &&
+        options.genre !== 'all' &&
+        /^[a-fA-F0-9]{24}$/.test(options.genre)
+      ) {
         andFilters.push({ genres: options.genre });
       }
 
       // Combine all filters
-      const filter = andFilters.length > 1 ? { $and: andFilters } : andFilters[0] || {};
-      console.log('Final MongoDB filter for advanced search:', JSON.stringify(filter));
+      const filter =
+        andFilters.length > 1 ? { $and: andFilters } : andFilters[0] || {};
+      console.log(
+        'Final MongoDB filter for advanced search:',
+        JSON.stringify(filter),
+      );
 
       // Pagination
       const page = Math.max(1, parseInt(String(options.page)) || 1);
@@ -711,7 +728,7 @@ export class SongsService {
         .populate({
           path: 'genres',
           select: '_id name',
-          model: 'Genre'
+          model: 'Genre',
         })
         .sort({ [actualSortField]: sortDirection })
         .skip(skip)
@@ -722,18 +739,25 @@ export class SongsService {
 
       // Map the results to ensure consistent field naming
       let songsRaw = songs.map((song) => song.toObject());
-      console.log('Raw genres before population:', songsRaw.map(s => ({ id: s._id, genres: s.genres })));
+      console.log(
+        'Raw genres before population:',
+        songsRaw.map((s) => ({ id: s._id, genres: s.genres })),
+      );
       let mappedSongs = songsRaw.map((song) => ({
         ...song,
         cover: song.thumbnail || song.cover, // Use thumbnail as cover
       }));
 
       // If filtering by genre, only keep the matching genre(s) in each song
-      if (options.genre && options.genre !== 'all' && /^[a-fA-F0-9]{24}$/.test(options.genre)) {
+      if (
+        options.genre &&
+        options.genre !== 'all' &&
+        /^[a-fA-F0-9]{24}$/.test(options.genre)
+      ) {
         const genreId = options.genre;
         mappedSongs = mappedSongs.map((song) => {
           const filteredGenres = (song.genres || []).filter(
-            (g) => (g._id?.toString?.() || g.toString?.()) === genreId
+            (g) => (g._id?.toString?.() || g.toString?.()) === genreId,
           );
           console.log('Song', song._id, 'filtered genres:', filteredGenres);
           return {
@@ -763,27 +787,34 @@ export class SongsService {
   // Helper method to manually populate genres for songs
   private async populateGenresForSongs(songs: any[]): Promise<any[]> {
     console.log('Starting manual genre population for', songs.length, 'songs');
-    
+
     const songsWithGenres = await Promise.all(
       songs.map(async (song) => {
-        console.log('Processing song:', song._id, 'Current genres field:', song.genres);
-        
+        console.log(
+          'Processing song:',
+          song._id,
+          'Current genres field:',
+          song.genres,
+        );
+
         // First, check if genres are already populated in the song object
         if (song.genres && song.genres.length > 0) {
           console.log('Song already has genres field with data:', song.genres);
-          
+
           // If genres are just IDs, populate them
           if (typeof song.genres[0] === 'string') {
             try {
               const populatedGenres = await this.songModel.db
                 .collection('genres')
-                .find({ _id: { $in: song.genres.map(id => new Types.ObjectId(id)) } })
+                .find({
+                  _id: { $in: song.genres.map((id) => new Types.ObjectId(id)) },
+                })
                 .toArray();
-              
+
               console.log('Populated genres from IDs:', populatedGenres);
               return {
                 ...song,
-                genres: populatedGenres
+                genres: populatedGenres,
               };
             } catch (error) {
               console.error('Error populating genre IDs:', error);
@@ -794,44 +825,53 @@ export class SongsService {
             return song;
           }
         }
-        
+
         // Fallback: Try to find genre relationships using GenreSong model
         try {
           const songObjectId = new Types.ObjectId(song._id);
-          
+
           const genreSongs = await this.genreSongModel
-            .find({ 
+            .find({
               $or: [
-                { songId: song._id },      // Try as string
-                { songId: songObjectId }   // Try as ObjectId
-              ]
+                { songId: song._id }, // Try as string
+                { songId: songObjectId }, // Try as ObjectId
+              ],
             })
             .populate('genreId')
             .exec();
-          
-          console.log('Genre relationships found via GenreSong:', genreSongs.length);
-          
+
+          console.log(
+            'Genre relationships found via GenreSong:',
+            genreSongs.length,
+          );
+
           if (genreSongs.length > 0) {
-            const genres = genreSongs.map(gs => (gs as any).genreId).filter(Boolean);
+            const genres = genreSongs
+              .map((gs) => (gs as any).genreId)
+              .filter(Boolean);
             console.log('Populated genres from GenreSong:', genres);
-            
+
             return {
               ...song,
-              genres: genres
+              genres: genres,
             };
           }
         } catch (error) {
           console.error('Error finding genre relationships:', error);
         }
-        
-        console.log('No genres found for song:', song._id, '- keeping empty array');
+
+        console.log(
+          'No genres found for song:',
+          song._id,
+          '- keeping empty array',
+        );
         return {
           ...song,
-          genres: []
+          genres: [],
         };
-      })
+      }),
     );
-    
+
     return songsWithGenres;
   }
 }

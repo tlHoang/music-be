@@ -16,6 +16,8 @@ import {
   CodeActivateDto,
   CreateAuthDto,
   ResendCodeDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
 } from './dto/create-auth.dto';
 import { LocalAuthGuard } from './passport/local-auth.guard';
 import { ApiBody, ApiExcludeEndpoint } from '@nestjs/swagger';
@@ -54,6 +56,20 @@ export class AuthController {
   @ResponseMessage('Verification code resent successfully')
   resendCode(@Body() resendCodeDto: ResendCodeDto) {
     return this.authService.resendCode(resendCodeDto);
+  }
+
+  @Post('/forgot-password')
+  @Public()
+  @ResponseMessage('Password reset instructions sent')
+  forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Put('/reset-password')
+  @Public()
+  @ResponseMessage('Password reset successfully')
+  resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 
   @Get('/profile')
