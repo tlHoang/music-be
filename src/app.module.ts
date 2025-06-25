@@ -21,6 +21,8 @@ import { FollowPlaylistModule } from './modules/follow-playlist/follow-playlist.
 import { AdminModule } from './modules/admin/admin.module';
 import { HealthCheckModule } from './modules/health-check/health-check.module';
 import { PlaybackModule } from './modules/playback/playback.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 // Import other modules here...
 
 @Module({
@@ -76,6 +78,8 @@ import { PlaybackModule } from './modules/playback/playback.module';
     AdminModule,
     HealthCheckModule,
     PlaybackModule,
+    PaymentsModule,
+    SubscriptionsModule,
     // Add other modules here...
   ],
   controllers: [AppController],

@@ -34,6 +34,20 @@ export class SongsService {
     private readonly genresService: GenresService, // Inject GenresService
   ) {}
 
+  // Count songs for a user (for subscription limit checks)
+  async countUserSongs(userId: string): Promise<number> {
+    // Try both string and ObjectId formats since data might be stored inconsistently
+    const count = await this.songModel.countDocuments({
+      $or: [
+        { userId: userId }, // string format
+        { userId: new Types.ObjectId(userId) }, // ObjectId format
+      ],
+      isFlagged: { $ne: true },
+    });
+
+    return count;
+  }
+
   async create(createSongDto: CreateSongDto) {
     const song = await this.songModel.create(createSongDto);
 

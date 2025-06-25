@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PlaylistsService } from './playlists.service';
 import { PlaylistsController } from './playlists.controller';
@@ -12,6 +12,7 @@ import {
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { FirebaseModule } from '../firebase/firebase.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { FirebaseModule } from '../firebase/firebase.module';
       inject: [ConfigService],
     }),
     FirebaseModule,
+    forwardRef(() => SubscriptionsModule),
   ],
   controllers: [PlaylistsController],
   providers: [PlaylistsService],

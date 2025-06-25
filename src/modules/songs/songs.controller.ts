@@ -33,8 +33,9 @@ import { Request } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
-import { GenreSongService } from '@/modules/genre-song/genre-song.service';
 import { Public } from '@/common/decorators/public.decorator';
+import { SubscriptionsService } from '@/modules/subscriptions/subscriptions.service';
+import { ForbiddenException } from '@nestjs/common';
 
 @ApiTags('songs')
 @Controller('songs')
@@ -43,12 +44,43 @@ export class SongsController {
     private readonly songsService: SongsService,
     private readonly firebaseService: FirebaseService,
     private readonly jwtService: JwtService,
-    private readonly genreSongService: GenreSongService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   @Post()
-  create(@Body() createSongDto: CreateSongDto) {
-    return this.songsService.create(createSongDto);
+  async create(@Body() createSongDto: CreateSongDto, @Req() req) {
+    const userId = req.user._id;
+
+    // Check subscription limits
+    const currentSongCount = await this.songsService.countUserSongs(userId);
+    const canUpload = await this.subscriptionsService.canUploadSong(
+      userId,
+      currentSongCount,
+    );
+
+    if (!canUpload.canUpload) {
+      return {
+        success: false,
+        statusCode: 403,
+        message: canUpload.reason,
+        error: 'Subscription Limit Exceeded',
+        data: null,
+      };
+    }
+
+    // Create song data with userId
+    const songData = {
+      ...createSongDto,
+      userId: userId,
+    };
+
+    const result = await this.songsService.create(songData);
+    return {
+      success: true,
+      statusCode: 201,
+      message: 'Song created successfully',
+      data: result,
+    };
   }
 
   @Get()
@@ -229,7 +261,25 @@ export class SongsController {
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadMusic(@UploadedFile() file: Express.Multer.File) {
+  async uploadMusic(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() request: Request,
+  ) {
+    // Extract the authenticated user's ID from the JWT token
+    const authenticatedUserId = this.jwtService.decode(
+      request.headers.authorization!.split(' ')[1],
+    ).sub;
+
+    // Check file size limits
+    const canUploadFileSize = await this.subscriptionsService.canUploadFileSize(
+      authenticatedUserId,
+      file.size,
+    );
+
+    if (!canUploadFileSize.canUpload) {
+      throw new ForbiddenException(canUploadFileSize.reason);
+    }
+
     const fileUrl = await this.firebaseService.uploadFile(file);
     return { url: fileUrl };
   }
@@ -251,6 +301,44 @@ export class SongsController {
     const authenticatedUserId = this.jwtService.decode(
       request.headers.authorization!.split(' ')[1],
     ).sub;
+
+    // Check subscription limits for song count
+    const currentSongCount =
+      await this.songsService.countUserSongs(authenticatedUserId);
+    const canUploadSong = await this.subscriptionsService.canUploadSong(
+      authenticatedUserId,
+      currentSongCount,
+    );
+
+    if (!canUploadSong.canUpload) {
+      return {
+        success: false,
+        statusCode: 403,
+        message: canUploadSong.reason,
+        error: 'Subscription Limit Exceeded',
+        data: null,
+      };
+    }
+
+    // Check file size limits if audio file is present
+    if (files.audio && files.audio[0]) {
+      const fileSize = files.audio[0].size;
+      const canUploadFileSize =
+        await this.subscriptionsService.canUploadFileSize(
+          authenticatedUserId,
+          fileSize,
+        );
+
+      if (!canUploadFileSize.canUpload) {
+        return {
+          success: false,
+          statusCode: 403,
+          message: canUploadFileSize.reason,
+          error: 'Subscription Limit Exceeded',
+          data: null,
+        };
+      }
+    }
 
     // Handle cover image if present
     let coverUrl: string | undefined = undefined;

@@ -26,6 +26,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { isValidObjectId } from 'mongoose';
 import { FirebaseService } from '@/modules/firebase/firebase.service';
+import { SubscriptionsService } from '@/modules/subscriptions/subscriptions.service';
 
 @ApiTags('playlists')
 @Controller('playlists')
@@ -34,13 +35,39 @@ export class PlaylistsController {
     private readonly playlistsService: PlaylistsService,
     private readonly jwtService: JwtService,
     private readonly firebaseService: FirebaseService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
-
   @Post()
-  create(@Body() createPlaylistDto: CreatePlaylistDto, @Request() req) {
+  async create(@Body() createPlaylistDto: CreatePlaylistDto, @Request() req) {
+    const userId = req.user._id;
+
+    // Check subscription limits
+    const currentPlaylistCount =
+      await this.playlistsService.countUserPlaylists(userId);
+    const canCreate = await this.subscriptionsService.canCreatePlaylist(
+      userId,
+      currentPlaylistCount,
+    );
+
+    if (!canCreate.canCreate) {
+      return {
+        success: false,
+        statusCode: 403,
+        message: canCreate.reason,
+        error: 'Subscription Limit Exceeded',
+        data: null,
+      };
+    }
+
     // Ensure the userId in the DTO matches the authenticated user
-    createPlaylistDto.userId = req.user._id;
-    return this.playlistsService.create(createPlaylistDto);
+    createPlaylistDto.userId = userId;
+    const result = await this.playlistsService.create(createPlaylistDto);
+    return {
+      success: true,
+      statusCode: 201,
+      message: 'Playlist created successfully',
+      data: result,
+    };
   }
   @Public()
   @Get()

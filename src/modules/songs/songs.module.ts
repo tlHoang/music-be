@@ -1,4 +1,9 @@
-import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import {
+  Module,
+  MiddlewareConsumer,
+  RequestMethod,
+  forwardRef,
+} from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SongsService } from './songs.service';
 import { SongsController } from './songs.controller';
@@ -13,8 +18,8 @@ import {
   GenreSong,
   GenreSongSchema,
 } from '../genre-song/schemas/genre-song.schema';
-import { GenreSongModule } from '../genre-song/genre-song.module';
 import { GenresModule } from '../genres/genres.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -28,8 +33,8 @@ import { GenresModule } from '../genres/genres.module';
     ]),
     FirebaseModule,
     JwtModule.register({}), // Register JwtModule to provide JwtService
-    GenreSongModule, // Import GenreSongModule to use its service
-    GenresModule, // <-- Add this line
+    GenresModule,
+    forwardRef(() => SubscriptionsModule),
   ],
   controllers: [SongsController],
   providers: [SongsService],

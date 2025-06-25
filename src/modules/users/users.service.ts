@@ -609,4 +609,144 @@ export class UsersService {
       };
     }
   }
+
+  async getUserStats(userId: string) {
+    try {
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      // Get basic counts
+      const [totalSongs, totalPlaylists, followers, following] =
+        await Promise.all([
+          this.songModel.countDocuments({ userId: new Types.ObjectId(userId) }),
+          this.playlistModel.countDocuments({
+            userId: new Types.ObjectId(userId),
+          }),
+          this.followerModel.countDocuments({
+            followingId: new Types.ObjectId(userId),
+          }),
+          this.followerModel.countDocuments({
+            followerId: new Types.ObjectId(userId),
+          }),
+        ]);
+
+      // Get song plays and likes over time (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const songs = await this.songModel
+        .find({ userId: new Types.ObjectId(userId) })
+        .select('title playCount likeCount uploadDate visibility')
+        .sort({ uploadDate: -1 });
+
+      // Calculate total plays and likes
+      const totalPlays = songs.reduce(
+        (sum, song) => sum + (song.playCount || 0),
+        0,
+      );
+      const totalLikes = songs.reduce(
+        (sum, song) => sum + (song.likeCount || 0),
+        0,
+      );
+
+      // Get upload activity over the last 12 months
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+      const monthlyUploads = await this.songModel.aggregate([
+        {
+          $match: {
+            userId: new Types.ObjectId(userId),
+            uploadDate: { $gte: twelveMonthsAgo },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$uploadDate' },
+              month: { $month: '$uploadDate' },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $sort: { '_id.year': 1, '_id.month': 1 },
+        },
+      ]);
+
+      // Get top performing songs
+      const topSongs = songs
+        .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+        .slice(0, 5)
+        .map((song) => ({
+          title: song.title,
+          plays: song.playCount || 0,
+          likes: song.likeCount || 0,
+          visibility: song.visibility,
+        }));
+
+      // Get visibility distribution
+      const visibilityStats = songs.reduce(
+        (acc, song) => {
+          acc[song.visibility] = (acc[song.visibility] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      // Get recent activity (last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const recentSongs = await this.songModel.countDocuments({
+        userId: new Types.ObjectId(userId),
+        uploadDate: { $gte: sevenDaysAgo },
+      });
+
+      const recentPlaylists = await this.playlistModel.countDocuments({
+        userId: new Types.ObjectId(userId),
+        createdAt: { $gte: sevenDaysAgo },
+      });
+
+      return {
+        success: true,
+        data: {
+          overview: {
+            totalSongs,
+            totalPlaylists,
+            totalPlays,
+            totalLikes,
+            followers,
+            following,
+          },
+          recentActivity: {
+            songsThisWeek: recentSongs,
+            playlistsThisWeek: recentPlaylists,
+          },
+          topSongs,
+          visibilityDistribution: visibilityStats,
+          monthlyUploads: monthlyUploads.map((item) => ({
+            month: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
+            uploads: item.count,
+          })),
+          engagement: {
+            averagePlaysPerSong:
+              totalSongs > 0 ? Math.round(totalPlays / totalSongs) : 0,
+            averageLikesPerSong:
+              totalSongs > 0 ? Math.round(totalLikes / totalSongs) : 0,
+            totalEngagements: totalPlays + totalLikes,
+          },
+        },
+      };
+    } catch (error) {
+      console.error('Error getting user stats:', error);
+      return {
+        success: false,
+        message: 'Failed to get user stats',
+        error: error.message,
+      };
+    }
+  }
 }
