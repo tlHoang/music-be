@@ -42,12 +42,12 @@ import { ForbiddenException } from '@nestjs/common';
  */
 function cleanFirebaseUrl(url: string): string {
   if (!url) return url;
-  
+
   // Fix double-encoded URLs (covers%252F -> covers%2F)
   if (url.includes('%252F')) {
     url = url.replace(/%252F/g, '%2F');
   }
-  
+
   // Ensure proper encoding for Firebase Storage paths
   if (url.includes('storage.googleapis.com') && url.includes('covers/')) {
     // If it's a proper Firebase Storage URL but has encoding issues
@@ -57,7 +57,7 @@ function cleanFirebaseUrl(url: string): string {
       return baseUrl + 'covers%2F' + filename;
     }
   }
-  
+
   return url;
 }
 
@@ -620,7 +620,7 @@ export class SongsController {
     @Query('limit') limit: string = '5',
   ) {
     const songs = await this.songsService.getSimilarSongs(id, parseInt(limit));
-    
+
     // Process signed URLs for covers
     const songsWithSignedCovers = await Promise.all(
       songs.map(async (song) => {
@@ -638,7 +638,7 @@ export class SongsController {
         return { ...song, cover };
       }),
     );
-    
+
     return {
       songs: songsWithSignedCovers,
       count: songsWithSignedCovers.length,
@@ -654,20 +654,17 @@ export class SongsController {
   }
 
   @Post(':id/generate-embedding')
-  async generateEmbeddingForSong(
-    @Param('id') id: string,
-    @Req() req: any,
-  ) {
+  async generateEmbeddingForSong(@Param('id') id: string, @Req() req: any) {
     try {
       await this.songsService.generateAndStoreLyricsEmbedding(id);
-      return { 
+      return {
         message: `Embedding generation started for song ${id}`,
-        songId: id 
+        songId: id,
       };
     } catch (error) {
-      return { 
+      return {
         error: 'Failed to generate embedding',
-        details: error.message 
+        details: error.message,
       };
     }
   }
@@ -692,12 +689,12 @@ export class SongsController {
   @Get('debug/vector-service')
   @Public()
   async debugVectorService() {
-    const testText = "I love you more than words can say";
-    
+    const testText = 'I love you more than words can say';
+
     try {
       // Check if vector service is available
       const isAvailable = this.songsService['vectorService'].isAvailable();
-      
+
       if (!isAvailable) {
         return {
           status: 'error',
@@ -707,8 +704,9 @@ export class SongsController {
       }
 
       // Try to generate a test embedding
-      const embedding = await this.songsService['vectorService'].generateEmbedding(testText);
-      
+      const embedding =
+        await this.songsService['vectorService'].generateEmbedding(testText);
+
       return {
         status: 'success',
         message: 'Vector service is working',

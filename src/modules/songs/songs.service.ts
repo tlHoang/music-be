@@ -156,7 +156,10 @@ export class SongsService {
       if (lyrics && lyrics.trim() && this.vectorService.isAvailable()) {
         // Generate embedding asynchronously (don't wait for it)
         this.generateAndStoreLyricsEmbedding(songId).catch((error) => {
-          console.error(`Failed to generate embedding for updated song ${songId}:`, error);
+          console.error(
+            `Failed to generate embedding for updated song ${songId}:`,
+            error,
+          );
         });
       }
 
@@ -1061,34 +1064,48 @@ export class SongsService {
               playCount: 1,
               likeCount: 1,
               visibility: 1,
-              similarity: 1
+              similarity: 1,
             },
           },
         ];
 
         console.log('Attempting MongoDB Atlas Vector Search...');
-        const vectorResults = await this.songModel.aggregate(vectorSearchPipeline).exec();
+        const vectorResults = await this.songModel
+          .aggregate(vectorSearchPipeline)
+          .exec();
 
         if (vectorResults && vectorResults.length > 0) {
-          console.log(`Atlas Vector Search found ${vectorResults.length} results`);
+          console.log(
+            `Atlas Vector Search found ${vectorResults.length} results`,
+          );
 
           // Populate genres for the results
-          const songsWithGenres = await this.populateGenresForSongs(vectorResults);
+          const songsWithGenres =
+            await this.populateGenresForSongs(vectorResults);
 
           return songsWithGenres.map((song) => ({
             ...song,
             cover: song.thumbnail || song.cover, // Map thumbnail to cover
-            artist: song.userId?.name || song.userId?.username || 'Unknown Artist',
+            artist:
+              song.userId?.name || song.userId?.username || 'Unknown Artist',
             user: song.userId,
             searchType: 'atlas_vector',
             similarity: song.similarity,
           }));
         }
       } catch (vectorError) {
-        console.log('Atlas Vector Search not available or index not found, falling back to manual calculation:', vectorError.message);
+        console.log(
+          'Atlas Vector Search not available or index not found, falling back to manual calculation:',
+          vectorError.message,
+        );
 
         // Fallback to manual vector similarity calculation
-        return this.searchSongsByLyricsManual(query, limit, similarityThreshold, queryEmbedding);
+        return this.searchSongsByLyricsManual(
+          query,
+          limit,
+          similarityThreshold,
+          queryEmbedding,
+        );
       }
 
       // If no results from vector search, fallback to text search
@@ -1164,7 +1181,9 @@ export class SongsService {
         },
       ];
 
-      const songsWithEmbeddings = await this.songModel.aggregate(pipeline).exec();
+      const songsWithEmbeddings = await this.songModel
+        .aggregate(pipeline)
+        .exec();
 
       if (songsWithEmbeddings.length === 0) {
         return this.searchSongsByLyricsText(query, limit);
@@ -1189,13 +1208,18 @@ export class SongsService {
               ...song,
               cover: song.thumbnail || song.cover, // Map thumbnail to cover
               similarity,
-              artist: song.userId?.name || song.userId?.username || 'Unknown Artist',
+              artist:
+                song.userId?.name || song.userId?.username || 'Unknown Artist',
               user: song.userId,
               searchType: 'manual_vector',
             });
           }
         } catch (error) {
-          console.error('Error calculating similarity for song:', song._id, error);
+          console.error(
+            'Error calculating similarity for song:',
+            song._id,
+            error,
+          );
         }
       }
 
@@ -1273,7 +1297,11 @@ export class SongsService {
         if (!songGenreMap.has(gs.songId.toString())) {
           songGenreMap.set(gs.songId.toString(), []);
         }
-        if (gs.genreId && typeof gs.genreId === 'object' && 'name' in gs.genreId) {
+        if (
+          gs.genreId &&
+          typeof gs.genreId === 'object' &&
+          'name' in gs.genreId
+        ) {
           songGenreMap.get(gs.songId.toString()).push({
             _id: gs.genreId._id,
             name: (gs.genreId as any).name,

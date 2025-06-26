@@ -44,7 +44,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
       'prefer-const': 'off',
       'no-undef': 'off',
-      'quotes': 'off',
+      quotes: 'off',
       'prettier/prettier': 'off', // Turn off prettier formatting issues completely
     },
   },
