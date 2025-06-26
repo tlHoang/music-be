@@ -36,14 +36,9 @@ export class SongsService {
     private readonly vectorService: VectorService, // Inject VectorService
   ) {}
 
-  // Count songs for a user (for subscription limit checks)
   async countUserSongs(userId: string): Promise<number> {
-    // Try both string and ObjectId formats since data might be stored inconsistently
     const count = await this.songModel.countDocuments({
-      $or: [
-        { userId: userId }, // string format
-        { userId: new Types.ObjectId(userId) }, // ObjectId format
-      ],
+      $or: [{ userId: userId }, { userId: new Types.ObjectId(userId) }],
       isFlagged: { $ne: true },
     });
 
@@ -53,12 +48,10 @@ export class SongsService {
   async create(createSongDto: CreateSongDto) {
     const song = await this.songModel.create(createSongDto);
 
-    // Update the user's songs field
     await this.userModel.findByIdAndUpdate(song.userId, {
       $push: { songs: song._id },
     });
 
-    // Generate embedding for lyrics if provided
     if (createSongDto.lyrics && this.vectorService.isAvailable()) {
       this.generateAndStoreLyricsEmbedding(song._id.toString()).catch(
         console.error,
@@ -70,7 +63,7 @@ export class SongsService {
 
   async findAll() {
     const songs = await this.songModel
-      .find({ isFlagged: { $ne: true } }) // Exclude flagged tracks
+      .find({ isFlagged: { $ne: true } })
       .populate('userId', 'username name')
       .exec();
 
@@ -78,7 +71,6 @@ export class SongsService {
     console.log('Total songs found:', songs.length);
     console.log('First song raw genres:', songs[0]?.genres);
 
-    // Manually populate genres for all songs
     const songsWithGenres = await this.populateGenresForSongs(
       songs.map((s) => s.toObject()),
     );
@@ -118,7 +110,6 @@ export class SongsService {
     console.log('Track ID:', id);
     console.log('Raw song genres field:', song.genres);
 
-    // Manually populate genres for this single song
     const songObj = song.toObject();
     const [songWithGenres] = await this.populateGenresForSongs([songObj]);
 
@@ -138,12 +129,11 @@ export class SongsService {
    */
   async updateSongWithLyrics(songId: string, lyrics: string): Promise<any> {
     try {
-      // Update the song with new lyrics
       const updatedSong = await this.songModel.findByIdAndUpdate(
         songId,
         {
           lyrics: lyrics.trim(),
-          lyricsEmbedding: null, // Clear old embedding
+          lyricsEmbedding: null,
         },
         { new: true },
       );
@@ -152,9 +142,7 @@ export class SongsService {
         throw new NotFoundException('Song not found');
       }
 
-      // Generate new embedding for the updated lyrics
       if (lyrics && lyrics.trim() && this.vectorService.isAvailable()) {
-        // Generate embedding asynchronously (don't wait for it)
         this.generateAndStoreLyricsEmbedding(songId).catch((error) => {
           console.error(
             `Failed to generate embedding for updated song ${songId}:`,
@@ -180,25 +168,20 @@ export class SongsService {
   }
 
   async remove(id: string) {
-    // First, find the song to get the userId
     const song = await this.songModel.findById(id);
 
     if (!song) {
       return null;
     }
 
-    // Get the user ID from the song
     const userId = song.userId;
 
-    // Delete the song from the database
     const result = await this.songModel.findByIdAndDelete(id).exec();
 
     if (result) {
       try {
-        // Convert string ID to ObjectId for proper matching
         const songObjectId = new Types.ObjectId(id);
 
-        // Remove the song ID from the user's songs array
         const updateResult = await this.userModel.findByIdAndUpdate(
           userId,
           { $pull: { songs: songObjectId } },
@@ -224,7 +207,6 @@ export class SongsService {
       .sort({ uploadDate: -1 })
       .exec();
 
-    // Manually populate genres
     const songsWithGenres = await this.populateGenresForSongs(
       songs.map((s) => s.toObject()),
     );
@@ -251,7 +233,6 @@ export class SongsService {
   }
 
   async findPublicSongsByUser(userId: string, isOwner: boolean = false) {
-    // If owner is viewing, return all songs. Otherwise, only return public songs
     const query = isOwner
       ? { userId }
       : { userId, visibility: 'PUBLIC', isFlagged: { $ne: true } };
@@ -261,7 +242,6 @@ export class SongsService {
       .sort({ uploadDate: -1 })
       .exec();
 
-    // Manually populate genres
     const songsWithGenres = await this.populateGenresForSongs(
       songs.map((s) => s.toObject()),
     );
@@ -288,7 +268,6 @@ export class SongsService {
   }
 
   async getFeed(userId: string): Promise<FeedItem[]> {
-    // Find all user IDs that the current user follows
     const following = await this.followerModel
       .find({ followerId: userId.toString() })
       .select('followingId')
@@ -297,16 +276,14 @@ export class SongsService {
     const followingIds = following.map((f) => f.followingId);
 
     if (followingIds.length === 0) {
-      // If not following anyone, return empty array
       return [];
     }
 
-    // Find recent public songs from users the current user follows
     const songs = await this.songModel
       .find({
         userId: { $in: followingIds },
         visibility: 'PUBLIC',
-        isFlagged: { $ne: true }, // Exclude flagged tracks
+        isFlagged: { $ne: true },
       })
       .sort({ uploadDate: -1 })
       .limit(50)

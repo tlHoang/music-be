@@ -17,7 +17,6 @@ export interface PlanLimits {
   features: string[];
 }
 
-// Define an interface for subscription data
 interface SubscriptionData {
   userId: Types.ObjectId;
   plan: SubscriptionPlan;
@@ -44,7 +43,6 @@ export class SubscriptionsService {
     private readonly playlistsService: PlaylistsService,
   ) {}
 
-  // Plan configurations
   private readonly planLimits: Record<SubscriptionPlan, PlanLimits> = {
     [SubscriptionPlan.FREE]: {
       maxSongs: 10,
@@ -66,7 +64,6 @@ export class SubscriptionsService {
     },
   };
 
-  // Get user's current subscription
   async getUserSubscription(userId: string): Promise<Subscription | null> {
     try {
       const subscription = await this.subscriptionModel
@@ -142,13 +139,7 @@ export class SubscriptionsService {
         paymentMethod: 'PayOS',
       };
 
-      // Only set endDate and nextBillingDate for FREE plan (if needed)
-      if (plan === SubscriptionPlan.FREE) {
-        const endDate = new Date();
-        endDate.setMonth(endDate.getMonth() + durationMonths);
-        subscriptionData.endDate = endDate;
-        subscriptionData.nextBillingDate = endDate;
-      }
+      // No endDate is set for any plan - all subscriptions are permanent after payment
 
       this.logger.log(
         `[createSubscription] Creating subscription with data:`,

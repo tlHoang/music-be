@@ -25,7 +25,6 @@ export class FirebaseService {
             'https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-3cro0%40smarthome1-6a97d.iam.gserviceaccount.com',
           universe_domain: 'googleapis.com',
         } as admin.ServiceAccount),
-        // Use environment variable with fallback to the hardcoded bucket name
         storageBucket:
           process.env.FIREBASE_STORAGE_BUCKET || 'smarthome1-6a97d.appspot.com',
       });
@@ -51,27 +50,22 @@ export class FirebaseService {
 
   async getSignedUrl(fileUrl: string): Promise<string> {
     try {
-      // Extract the file path from the public URL
-      // URLs from Firebase look like: https://storage.googleapis.com/BUCKET_NAME/FILE_PATH
       const bucket = admin.storage().bucket();
       const urlObj = new URL(fileUrl);
 
-      // Remove leading slash and bucket name
-      const pathWithBucket = urlObj.pathname.substring(1); // e.g. smarthome1-6a97d.appspot.com/music%2Fabc.mp3
-      const pathWithoutBucket = pathWithBucket.split('/').slice(1).join('/'); // e.g. music%2Fabc.mp3
-      const decodedPath = decodeURIComponent(pathWithoutBucket); // e.g. music/abc.mp3
+      const pathWithBucket = urlObj.pathname.substring(1);
+      const pathWithoutBucket = pathWithBucket.split('/').slice(1).join('/');
+      const decodedPath = decodeURIComponent(pathWithoutBucket);
       const file = bucket.file(decodedPath);
 
-      // Generate a signed URL that expires in 1 hour
       const [signedUrl] = await file.getSignedUrl({
         action: 'read',
-        expires: Date.now() + 3600 * 1000, // 1 hour
+        expires: Date.now() + 3600 * 1000,
       });
 
       return signedUrl;
     } catch (error) {
       console.error('Error generating signed URL:', error);
-      // If we can't generate a signed URL, return the original URL
       return fileUrl;
     }
   }
@@ -85,7 +79,6 @@ export class FirebaseService {
 
       console.log('Attempting to delete file:', fileUrl);
 
-      // Extract the file path from the public URL
       const bucket = admin.storage().bucket();
       console.log('Storage bucket name:', bucket.name);
 
@@ -98,21 +91,15 @@ export class FirebaseService {
           hostname: urlObj.hostname,
         });
 
-        // The pathname starts with '/', so we remove the first character
-        // Then we split by '/' and remove the first segment (bucket name)
         const pathSegments = urlObj.pathname.substring(1).split('/');
         console.log('Path segments before processing:', pathSegments);
 
-        // Extract the bucket name from the hostname or path for debugging
         const bucketFromUrl = urlObj.hostname.split('.')[0];
         console.log('Bucket name from URL hostname:', bucketFromUrl);
 
-        // If the URL format is different, this might need adjustment
-        // For Firebase Storage, we usually get: /BUCKET/PATH_TO_FILE
         const possibleBucketName = pathSegments[0];
         console.log('Possible bucket name from path:', possibleBucketName);
 
-        // Remove bucket name from path
         pathSegments.shift();
 
         const filePath = pathSegments.join('/');
@@ -123,8 +110,6 @@ export class FirebaseService {
           return false;
         }
 
-        // Try an alternative approach if the standard one fails
-        // Some Firebase URL formats might be different
         if (filePath.includes('%2F')) {
           console.log('URL contains encoded slashes, attempting to decode');
           const decodedPath = decodeURIComponent(filePath);
@@ -143,18 +128,15 @@ export class FirebaseService {
           }
         }
 
-        // Standard approach
         const file = bucket.file(filePath);
         console.log('Firebase file path:', file.name);
 
-        // Check if file exists before attempting to delete
         const [exists] = await file.exists();
         console.log(`File exists check: ${exists}`);
 
         if (!exists) {
           console.error(`File does not exist at path: ${filePath}`);
 
-          // Try a different path format as a fallback
           const urlParts = fileUrl.split('/');
           const altFilePath = urlParts.slice(4).join('/');
           console.log('Trying alternative file path:', altFilePath);
@@ -178,7 +160,6 @@ export class FirebaseService {
           return false;
         }
 
-        // Delete the file
         await file.delete();
         console.log(`Successfully deleted file: ${filePath}`);
         return true;
@@ -188,24 +169,18 @@ export class FirebaseService {
           console.error('Error details:', err.message);
         }
 
-        // Try a different approach by extracting the path directly from the URL
         try {
           console.log('Attempting alternative deletion approach');
-          // Extract path from URL without URL parsing
-          // Example URL: https://storage.googleapis.com/smarthome1-6a97d.appspot.com/music/uuid.mp3
 
           const parts = fileUrl.split('/');
-          // Remove protocol and domain parts
-          const pathParts = parts.slice(3); // Skip https:, '', storage.googleapis.com
+          const pathParts = parts.slice(3);
 
-          // Extract the bucket name
-          const bucketName = parts[3].split('.')[0]; // smarthome1-6a97d
+          const bucketName = parts[3].split('.')[0];
           console.log(
             'Alternative approach - extracted bucket name:',
             bucketName,
           );
 
-          // Remove bucket name from path
           const filePath = pathParts.slice(1).join('/');
           console.log('Alternative approach - extracted file path:', filePath);
 
@@ -227,7 +202,6 @@ export class FirebaseService {
       }
     } catch (error) {
       console.error('Error deleting file from Firebase:', error);
-      // Log specific information that might help with debugging
       if (error instanceof Error) {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);

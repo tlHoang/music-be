@@ -26,7 +26,6 @@ interface WebhookType {
     transactionDateTime: string;
     buyerName?: string;
     buyerEmail?: string;
-    // Only include fields required by SDK and used in your app
   };
 }
 
@@ -40,7 +39,6 @@ export class PaymentsService {
     @InjectModel(PaymentOrderMap.name)
     private readonly paymentOrderMapModel?: Model<PaymentOrderMap>,
   ) {
-    // Initialize PayOS with credentials from environment variables
     this.payOS = new PayOS(
       process.env.PAYOS_CLIENT_ID || '',
       process.env.PAYOS_API_KEY || '',
@@ -152,7 +150,6 @@ export class PaymentsService {
       const orderCode = Date.now();
 
       if (amount === 0) {
-        // For free plan, create subscription directly
         if (this.subscriptionsService) {
           await this.subscriptionsService.createSubscription(
             data.userId,
@@ -175,7 +172,6 @@ export class PaymentsService {
         };
       }
 
-      // Store orderCode-userId-plan mapping for webhook
       if (this.paymentOrderMapModel) {
         await this.paymentOrderMapModel.create({
           orderCode,

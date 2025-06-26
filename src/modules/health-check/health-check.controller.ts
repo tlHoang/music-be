@@ -7,7 +7,6 @@ export class HealthCheckController {
   @Public()
   @Get()
   async checkHealth(@Req() request: Request, @Headers() headers: any) {
-    // Log the custom headers
     console.log('Request headers:', {
       'X-App-Version': headers['x-app-version'],
       'X-Platform': headers['x-platform'],

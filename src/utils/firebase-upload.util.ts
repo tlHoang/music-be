@@ -1,12 +1,6 @@
 import { getStorage } from 'firebase-admin/storage';
 import { v4 as uuidv4 } from 'uuid';
 
-/**
- * Uploads a file buffer to Firebase Storage and returns the public URL.
- * @param buffer - The file buffer (image or audio)
- * @param destination - The destination path in the bucket (e.g., 'avatars/', 'covers/')
- * @param mimetype - The file's mimetype (e.g., 'image/jpeg')
- */
 export async function uploadFileToFirebase(
   buffer: Buffer,
   destination: string,
@@ -28,9 +22,7 @@ export async function uploadFileToFirebase(
     validation: 'md5',
   });
 
-  // Make the file public
   await file.makePublic();
 
-  // Return the public URL
   return file.publicUrl();
 }

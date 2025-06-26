@@ -24,7 +24,6 @@ import { CreateFlagReportDto } from './dto/create-flag-report.dto';
 import { ReviewFlagReportDto } from './dto/review-flag-report.dto';
 import { FirebaseService } from '@/modules/firebase/firebase.service';
 import { Genre } from '@/modules/genres/schemas/genre.schema';
-// import * as mm from 'music-metadata';
 import { loadEsm } from 'load-esm';
 import { IAudioMetadata } from 'music-metadata';
 import * as ffmpeg from 'fluent-ffmpeg';
@@ -37,20 +36,14 @@ import { Public } from '@/common/decorators/public.decorator';
 import { SubscriptionsService } from '@/modules/subscriptions/subscriptions.service';
 import { ForbiddenException } from '@nestjs/common';
 
-/**
- * Helper function to clean up potentially double-encoded URLs
- */
 function cleanFirebaseUrl(url: string): string {
   if (!url) return url;
 
-  // Fix double-encoded URLs (covers%252F -> covers%2F)
   if (url.includes('%252F')) {
     url = url.replace(/%252F/g, '%2F');
   }
 
-  // Ensure proper encoding for Firebase Storage paths
   if (url.includes('storage.googleapis.com') && url.includes('covers/')) {
-    // If it's a proper Firebase Storage URL but has encoding issues
     const parts = url.split('covers/');
     if (parts.length === 2) {
       const [baseUrl, filename] = parts;
@@ -75,7 +68,6 @@ export class SongsController {
   async create(@Body() createSongDto: CreateSongDto, @Req() req) {
     const userId = req.user._id;
 
-    // Check subscription limits
     const currentSongCount = await this.songsService.countUserSongs(userId);
     const canUpload = await this.subscriptionsService.canUploadSong(
       userId,
@@ -92,7 +84,6 @@ export class SongsController {
       };
     }
 
-    // Create song data with userId
     const songData = {
       ...createSongDto,
       userId: userId,
@@ -111,7 +102,6 @@ export class SongsController {
   @Public()
   async findAll() {
     const songs = await this.songsService.findAll();
-    // For each song, get signed cover URL if present
     const songsWithSignedCover = await Promise.all(
       songs.map(async (song) => {
         let cover = song.cover;
@@ -131,18 +121,13 @@ export class SongsController {
     return this.songsService.findAllForAdmin();
   }
 
-  // Important: Keep specific routes before wildcard routes
-  // Move the user-songs endpoint above the :id endpoint
   @Get('user-songs')
   async getUserSongs(@Req() request: Request) {
-    // Extract the authenticated user's ID from the JWT token
     const userId = this.jwtService.decode(
       request.headers.authorization!.split(' ')[1],
     ).sub;
 
-    // Fetch songs for the user
     const songs = await this.songsService.findSongsByUser(userId);
-    // For each song, get signed cover URL if present
     const songsWithSignedCover = await Promise.all(
       songs.map(async (song) => {
         let cover = song.cover;
@@ -163,12 +148,9 @@ export class SongsController {
     if (!userId) {
       throw new Error('User not authenticated');
     }
-    // Get the feed from the service
     const feed = await this.songsService.getFeed(userId);
-    // For each song, get signed cover URL if present
     const feedWithSignedCover = await Promise.all(
       feed.map(async (song) => {
-        // Use the correct property for cover image in FeedItem
         let coverImage =
           (song as any).coverImage ||
           (song as any).cover ||
@@ -212,12 +194,10 @@ export class SongsController {
     console.log('Request URL:', request.url);
     console.log('Query params:', request.query);
 
-    // Restore param-based logic: use query params for searching/filtering
     const query = request.query;
     console.log('query: ', query);
     const result = await this.songsService.advancedSearchSongs(query);
 
-    // Process signed URLs for covers if the search was successful
     if (result.success && 'data' in result && result.data) {
       const songsWithSignedCovers = await Promise.all(
         result.data.map(async (song) => {
@@ -261,7 +241,6 @@ export class SongsController {
       cover = await this.firebaseService.getSignedUrl(cover);
     }
 
-    // Handle both Mongoose documents and plain objects
     const songData =
       typeof song.toObject === 'function' ? song.toObject() : song;
 
@@ -289,12 +268,10 @@ export class SongsController {
     @UploadedFile() file: Express.Multer.File,
     @Req() request: Request,
   ) {
-    // Extract the authenticated user's ID from the JWT token
     const authenticatedUserId = this.jwtService.decode(
       request.headers.authorization!.split(' ')[1],
     ).sub;
 
-    // Check file size limits
     const canUploadFileSize = await this.subscriptionsService.canUploadFileSize(
       authenticatedUserId,
       file.size,
@@ -586,18 +563,15 @@ export class SongsController {
       parseFloat(threshold),
     );
 
-    // Process signed URLs for covers
     const songsWithSignedCovers = await Promise.all(
       songs.map(async (song) => {
         let cover = song.cover;
         if (cover && cover.includes('storage.googleapis.com')) {
           try {
-            // Clean potentially double-encoded URLs before signing
             const cleanedUrl = cleanFirebaseUrl(cover);
             cover = await this.firebaseService.getSignedUrl(cleanedUrl);
           } catch (error) {
             console.error('Error getting signed URL for cover:', error);
-            // Keep original URL if signing fails
           }
         }
         return { ...song, cover };
@@ -692,7 +666,6 @@ export class SongsController {
     const testText = 'I love you more than words can say';
 
     try {
-      // Check if vector service is available
       const isAvailable = this.songsService['vectorService'].isAvailable();
 
       if (!isAvailable) {
@@ -703,7 +676,6 @@ export class SongsController {
         };
       }
 
-      // Try to generate a test embedding
       const embedding =
         await this.songsService['vectorService'].generateEmbedding(testText);
 

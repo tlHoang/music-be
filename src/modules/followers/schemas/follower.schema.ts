@@ -11,7 +11,6 @@ export class Follower {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   followingId: Types.ObjectId;
 
-  // Timestamps added by the schema options, but need to be declared for TypeScript
   @Prop()
   createdAt: Date;
 

@@ -13,7 +13,6 @@ export class LikesService {
   ) {}
 
   async create(createLikeDto: CreateLikeDto) {
-    // Check if like already exists to prevent duplicates
     const existingLike = await this.findByUserAndSong(
       createLikeDto.userId,
       createLikeDto.songId,

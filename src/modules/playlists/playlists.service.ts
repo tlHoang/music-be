@@ -26,7 +26,6 @@ export class PlaylistsService {
     private readonly followPlaylistModel: Model<FollowPlaylist>,
     private readonly firebaseService: FirebaseService,
   ) {
-    // Verify DB connection on service init
     this.checkDatabaseConnection();
   }
 
@@ -42,12 +41,10 @@ export class PlaylistsService {
     }
   }
 
-  // Count playlists for a user (for subscription limit checks)
   async countUserPlaylists(userId: string): Promise<number> {
-    // Try both string and ObjectId formats since data might be stored inconsistently
     const count = await this.playlistModel.countDocuments({
       $or: [
-        { userId: userId }, // string format
+        { userId: userId },
         { userId: new Types.ObjectId(userId) }, // ObjectId format
       ],
     });

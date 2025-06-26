@@ -130,9 +130,6 @@ export class UsersService {
     if (isEmailExist) {
       throw new BadRequestException('Email already exist');
     }
-    // const isUsernameExist = await this.userModel.exists({
-    //   username: registerDto.username,
-    // });
     const isUsernameExist = await this.isUsernameExist(username);
     if (isUsernameExist) {
       throw new BadRequestException('Username already exists');
@@ -147,8 +144,6 @@ export class UsersService {
       status: 'PENDING',
       codeId: activationCode,
       codeExpired: dayjs().add(
-        // 1,
-        // 'second',
         this.configService.get<number>('CODE_EXPIRED_TIME', 1),
         this.configService.get<string>(
           'CODE_EXPIRED_UNIT',
@@ -158,8 +153,6 @@ export class UsersService {
     });
 
     this.mailerService.sendMail({
-      // to: email,
-      // to: 'hoanghuy232003@gmail.com',
       to: 'tlhh232003@gmail.com',
       subject: 'Activate your account',
       template: 'register',
@@ -284,15 +277,12 @@ export class UsersService {
     // Generate 6-digit reset code
     const resetCode = this.generateActivationCode();
 
-    // Set reset code and expiration (15 minutes)
     userRecord.resetCode = resetCode;
     userRecord.resetCodeExpired = dayjs().add(15, 'minutes').toDate();
 
     await userRecord.save();
 
-    // Send reset email
     this.mailerService.sendMail({
-      // to: userRecord.email,
       to: 'tlhh232003@gmail.com',
       subject: 'Password Reset Request',
       template: 'forgot-password',

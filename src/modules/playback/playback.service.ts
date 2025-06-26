@@ -16,7 +16,6 @@ export class PlaybackService {
     position: number,
     duration: number,
   ) {
-    // Upsert session for user/track
     return this.playbackSessionModel.findOneAndUpdate(
       { userId, trackId },
       { userId, trackId, position, duration },

@@ -18,13 +18,10 @@ export class VectorService {
 
     this.cohereEmbeddings = new CohereEmbeddings({
       apiKey: apiKey,
-      model: 'embed-english-v3.0', // Use Cohere's latest embedding model
+      model: 'embed-english-v3.0',
     });
   }
 
-  /**
-   * Generate embeddings for text using Cohere's embedding model
-   */
   async generateEmbedding(text: string): Promise<number[] | null> {
     try {
       if (!this.cohereEmbeddings) {
@@ -32,7 +29,6 @@ export class VectorService {
         return null;
       }
 
-      // Clean and prepare text
       const cleanText = this.cleanText(text);
       if (!cleanText || cleanText.length < 3) {
         this.logger.warn('Text too short for embedding generation');
@@ -55,9 +51,6 @@ export class VectorService {
     }
   }
 
-  /**
-   * Generate embeddings for multiple texts
-   */
   async generateEmbeddings(texts: string[]): Promise<(number[] | null)[]> {
     try {
       if (!this.cohereEmbeddings) {
@@ -96,9 +89,6 @@ export class VectorService {
     }
   }
 
-  /**
-   * Calculate cosine similarity between two vectors
-   */
   calculateCosineSimilarity(vectorA: number[], vectorB: number[]): number {
     if (vectorA.length !== vectorB.length) {
       throw new Error('Vectors must have the same length');
@@ -124,9 +114,6 @@ export class VectorService {
     return dotProduct / (normA * normB);
   }
 
-  /**
-   * Clean text for embedding generation
-   */
   private cleanText(text: string): string {
     if (!text || typeof text !== 'string') {
       return '';
@@ -134,14 +121,11 @@ export class VectorService {
 
     return text
       .trim()
-      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-      .replace(/[^\w\s\-.,!?]/g, '') // Remove special characters but keep basic punctuation
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s\-.,!?]/g, '')
       .toLowerCase();
   }
 
-  /**
-   * Chunk text into smaller pieces for better embeddings
-   */
   chunkText(text: string, maxChunkSize: number = 500): string[] {
     const cleanText = this.cleanText(text);
     if (cleanText.length <= maxChunkSize) {
@@ -175,9 +159,6 @@ export class VectorService {
     return chunks.length > 0 ? chunks : [cleanText.substring(0, maxChunkSize)];
   }
 
-  /**
-   * Check if vector service is available
-   */
   isAvailable(): boolean {
     return !!this.cohereEmbeddings;
   }

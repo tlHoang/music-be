@@ -14,10 +14,8 @@ export class CommentsService {
   ) {}
 
   async create(createCommentDto: CreateCommentDto) {
-    // Create the comment
     const comment = await this.commentModel.create(createCommentDto);
 
-    // Increment the commentCount in the song document
     await this.songModel.findByIdAndUpdate(
       createCommentDto.songId,
       { $inc: { commentCount: 1 } },

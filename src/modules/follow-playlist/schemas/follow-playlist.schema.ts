@@ -11,7 +11,6 @@ export class FollowPlaylist {
   @Prop({ type: Types.ObjectId, ref: 'Playlist', required: true })
   playlistId: Types.ObjectId;
 
-  // Timestamps added by the schema options, but need to be declared for TypeScript
   @Prop()
   createdAt: Date;
 
@@ -22,5 +21,4 @@ export class FollowPlaylist {
 export const FollowPlaylistSchema =
   SchemaFactory.createForClass(FollowPlaylist);
 
-// Create compound index to ensure a user can only follow a playlist once
 FollowPlaylistSchema.index({ userId: 1, playlistId: 1 }, { unique: true });

@@ -24,7 +24,6 @@ import { PlaybackModule } from './modules/playback/playback.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { VectorModule } from './modules/vector/vector.module';
-// Import other modules here...
 
 @Module({
   imports: [
@@ -61,7 +60,7 @@ import { VectorModule } from './modules/vector/vector.module';
         template: {
           // dir: process.cwd() + 'mail/templates/',
           dir: join(__dirname, 'mail/templates/'),
-          adapter: new HandlebarsAdapter(), // or new PugAdapter() or new EjsAdapter()
+          adapter: new HandlebarsAdapter(),
           options: {
             strict: true,
           },
@@ -82,7 +81,6 @@ import { VectorModule } from './modules/vector/vector.module';
     PaymentsModule,
     SubscriptionsModule,
     VectorModule,
-    // Add other modules here...
   ],
   controllers: [AppController],
   providers: [

@@ -7,7 +7,6 @@ declare global {
       email: string;
       name?: string;
       role?: string;
-      // Add other user properties as needed
     }
 
     interface Request {
