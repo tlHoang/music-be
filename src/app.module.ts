@@ -23,6 +23,7 @@ import { HealthCheckModule } from './modules/health-check/health-check.module';
 import { PlaybackModule } from './modules/playback/playback.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { VectorModule } from './modules/vector/vector.module';
 // Import other modules here...
 
 @Module({
@@ -80,6 +81,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     PlaybackModule,
     PaymentsModule,
     SubscriptionsModule,
+    VectorModule,
     // Add other modules here...
   ],
   controllers: [AppController],

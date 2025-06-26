@@ -20,9 +20,9 @@ export class CreateSongDto {
   // @IsOptional()
   // uploadDate?: Date;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  lyrics?: string;
+  lyrics: string;
 
   // @IsOptional()
   // @IsUrl()

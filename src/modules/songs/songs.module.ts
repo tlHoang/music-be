@@ -20,6 +20,7 @@ import {
 } from '../genre-song/schemas/genre-song.schema';
 import { GenresModule } from '../genres/genres.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { VectorModule } from '../vector/vector.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     JwtModule.register({}), // Register JwtModule to provide JwtService
     GenresModule,
     forwardRef(() => SubscriptionsModule),
+    VectorModule,
   ],
   controllers: [SongsController],
   providers: [SongsService],

@@ -32,6 +32,9 @@ export class Song {
   @Prop()
   lyrics: string;
 
+  @Prop({ type: [Number], index: '2dsphere' })
+  lyricsEmbedding: number[];
+
   @Prop({ required: true })
   audioUrl: string;
 

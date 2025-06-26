@@ -37,6 +37,30 @@ import { Public } from '@/common/decorators/public.decorator';
 import { SubscriptionsService } from '@/modules/subscriptions/subscriptions.service';
 import { ForbiddenException } from '@nestjs/common';
 
+/**
+ * Helper function to clean up potentially double-encoded URLs
+ */
+function cleanFirebaseUrl(url: string): string {
+  if (!url) return url;
+  
+  // Fix double-encoded URLs (covers%252F -> covers%2F)
+  if (url.includes('%252F')) {
+    url = url.replace(/%252F/g, '%2F');
+  }
+  
+  // Ensure proper encoding for Firebase Storage paths
+  if (url.includes('storage.googleapis.com') && url.includes('covers/')) {
+    // If it's a proper Firebase Storage URL but has encoding issues
+    const parts = url.split('covers/');
+    if (parts.length === 2) {
+      const [baseUrl, filename] = parts;
+      return baseUrl + 'covers%2F' + filename;
+    }
+  }
+  
+  return url;
+}
+
 @ApiTags('songs')
 @Controller('songs')
 export class SongsController {
@@ -362,7 +386,9 @@ export class SongsController {
           require('fs').unlinkSync(tempFilePath); // Clean up temp file
           if (err) {
             console.error('Error extracting metadata:', err);
-            return reject(err);
+            return reject(
+              new Error(`Failed to extract metadata: ${err.message || err}`),
+            );
           }
           resolve(metadata.format.duration || 0);
         });
@@ -541,5 +567,161 @@ export class SongsController {
     @Query('limit') limit: string = '10',
   ) {
     return this.songsService.getFlaggedSongs(parseInt(page), parseInt(limit));
+  }
+
+  @Get('search/lyrics')
+  @Public()
+  async searchByLyrics(
+    @Query('q') query: string,
+    @Query('limit') limit: string = '10',
+    @Query('threshold') threshold: string = '0.7',
+  ) {
+    if (!query) {
+      return { songs: [], message: 'Query parameter is required' };
+    }
+
+    const songs = await this.songsService.searchSongsByLyrics(
+      query,
+      parseInt(limit),
+      parseFloat(threshold),
+    );
+
+    // Process signed URLs for covers
+    const songsWithSignedCovers = await Promise.all(
+      songs.map(async (song) => {
+        let cover = song.cover;
+        if (cover && cover.includes('storage.googleapis.com')) {
+          try {
+            // Clean potentially double-encoded URLs before signing
+            const cleanedUrl = cleanFirebaseUrl(cover);
+            cover = await this.firebaseService.getSignedUrl(cleanedUrl);
+          } catch (error) {
+            console.error('Error getting signed URL for cover:', error);
+            // Keep original URL if signing fails
+          }
+        }
+        return { ...song, cover };
+      }),
+    );
+
+    return {
+      success: true,
+      data: songsWithSignedCovers,
+      count: songsWithSignedCovers.length,
+      query,
+      searchType: songsWithSignedCovers[0]?.searchType || 'vector',
+    };
+  }
+
+  @Get(':id/similar')
+  @Public()
+  async getSimilarSongs(
+    @Param('id') id: string,
+    @Query('limit') limit: string = '5',
+  ) {
+    const songs = await this.songsService.getSimilarSongs(id, parseInt(limit));
+    
+    // Process signed URLs for covers
+    const songsWithSignedCovers = await Promise.all(
+      songs.map(async (song) => {
+        let cover = song.cover;
+        if (cover && cover.includes('storage.googleapis.com')) {
+          try {
+            // Clean potentially double-encoded URLs before signing
+            const cleanedUrl = cleanFirebaseUrl(cover);
+            cover = await this.firebaseService.getSignedUrl(cleanedUrl);
+          } catch (error) {
+            console.error('Error getting signed URL for cover:', error);
+            // Keep original URL if signing fails
+          }
+        }
+        return { ...song, cover };
+      }),
+    );
+    
+    return {
+      songs: songsWithSignedCovers,
+      count: songsWithSignedCovers.length,
+    };
+  }
+
+  @Post('admin/generate-embeddings')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async generateEmbeddings() {
+    await this.songsService.generateEmbeddingsForAllSongs();
+    return { message: 'Embedding generation started' };
+  }
+
+  @Post(':id/generate-embedding')
+  async generateEmbeddingForSong(
+    @Param('id') id: string,
+    @Req() req: any,
+  ) {
+    try {
+      await this.songsService.generateAndStoreLyricsEmbedding(id);
+      return { 
+        message: `Embedding generation started for song ${id}`,
+        songId: id 
+      };
+    } catch (error) {
+      return { 
+        error: 'Failed to generate embedding',
+        details: error.message 
+      };
+    }
+  }
+
+  @Patch(':id/lyrics')
+  async updateLyrics(
+    @Param('id') id: string,
+    @Body('lyrics') lyrics: string,
+    @Req() req: any,
+  ) {
+    const userId = req.user._id;
+
+    // Check if user owns the song
+    const song = await this.songsService.findOne(id);
+    if (song.userId.toString() !== userId.toString()) {
+      throw new ForbiddenException('You can only update your own songs');
+    }
+
+    return await this.songsService.updateSongWithLyrics(id, lyrics);
+  }
+
+  @Get('debug/vector-service')
+  @Public()
+  async debugVectorService() {
+    const testText = "I love you more than words can say";
+    
+    try {
+      // Check if vector service is available
+      const isAvailable = this.songsService['vectorService'].isAvailable();
+      
+      if (!isAvailable) {
+        return {
+          status: 'error',
+          message: 'Vector service not available',
+          cohere_api_key_exists: !!process.env.COHERE_API_KEY,
+        };
+      }
+
+      // Try to generate a test embedding
+      const embedding = await this.songsService['vectorService'].generateEmbedding(testText);
+      
+      return {
+        status: 'success',
+        message: 'Vector service is working',
+        test_text: testText,
+        embedding_length: embedding ? embedding.length : 0,
+        sample_values: embedding ? embedding.slice(0, 5) : null,
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: 'Vector service test failed',
+        error: error.message,
+      };
+    }
   }
 }
