@@ -1,26 +1,66 @@
-import { Injectable } from '@nestjs/common';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { UsersService } from '@/modules/users/users.service';
+import { comparePasswordHelper } from '@/utils/PasswordHelper';
+import { JwtService } from '@nestjs/jwt';
+import { User } from '../users/schemas/user.schema';
+import {
+  CodeActivateDto,
+  CreateAuthDto,
+  ResendCodeDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/create-auth.dto';
 
 @Injectable()
 export class AuthService {
-  create(createAuthDto: CreateAuthDto) {
-    return 'This action adds a new auth';
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+  ) {}
+
+  async validateUser(email: string, pass: string): Promise<User | null> {
+    const user = await this.usersService.findByEmail(email);
+    if (!user || !(await comparePasswordHelper(pass, user.password))) {
+      return null;
+    }
+    return user;
   }
 
-  findAll() {
-    return `This action returns all auth`;
+  async login(user: User) {
+    const payload = {
+      email: user.email,
+      sub: user._id,
+      role: user.role, // Include user role in the JWT payload
+      username: user.username, // Also include username
+    };
+    return {
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role, // Return the role to the frontend
+      },
+      access_token: await this.jwtService.signAsync(payload),
+    };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} auth`;
+  async register(registerDto: CreateAuthDto) {
+    return this.usersService.register(registerDto);
   }
 
-  update(id: number, updateAuthDto: UpdateAuthDto) {
-    return `This action updates a #${id} auth`;
+  checkCode(codeActivateDto: CodeActivateDto) {
+    return this.usersService.handleActive(codeActivateDto);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} auth`;
+  resendCode(resendCodeDto: ResendCodeDto) {
+    return this.usersService.resendCode(resendCodeDto);
+  }
+
+  forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    return this.usersService.forgotPassword(forgotPasswordDto);
+  }
+
+  resetPassword(resetPasswordDto: ResetPasswordDto) {
+    return this.usersService.resetPassword(resetPasswordDto);
   }
 }

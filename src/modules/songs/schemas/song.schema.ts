@@ -1,0 +1,72 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+export type SongDocument = Song & Document;
+
+@Schema({ timestamps: true })
+export class Song {
+  @Prop({ required: true })
+  title: string;
+
+  @Prop()
+  artist: string;
+
+  @Prop()
+  album: string;
+
+  @Prop()
+  duration: number;
+
+  @Prop()
+  uploadDate: Date;
+
+  @Prop({ default: 0 })
+  playCount: number;
+
+  @Prop({ default: 0 })
+  likeCount: number;
+
+  @Prop({ default: 0 })
+  commentCount: number;
+
+  @Prop()
+  lyrics: string;
+
+  @Prop({ type: [Number], index: '2dsphere' })
+  lyricsEmbedding: number[];
+
+  @Prop({ required: true })
+  audioUrl: string;
+
+  @Prop()
+  thumbnail: string;
+
+  @Prop()
+  cover: string; // New field for cover image URL
+
+  @Prop({ enum: ['PRIVATE', 'PUBLIC'], default: 'PUBLIC' })
+  visibility: string;
+
+  // Add the new genres field - storing as an array of references to Genre documents
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Genre' }], default: [] })
+  genres: Types.ObjectId[];
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  userId: Types.ObjectId;
+
+  @Prop({ default: false })
+  isFlagged: boolean;
+
+  // Timestamps added by the schema options, but need to be declared for TypeScript
+  @Prop()
+  createdAt: Date;
+
+  @Prop()
+  updatedAt: Date;
+
+  // Removed redundant genres field
+  // @Prop({ type: [{ type: Types.ObjectId, ref: 'Genre' }] })
+  // genres: Types.ObjectId[]; // Many-to-many relationship with Genre
+}
+
+export const SongSchema = SchemaFactory.createForClass(Song);

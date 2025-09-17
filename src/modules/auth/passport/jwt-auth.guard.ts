@@ -1,0 +1,42 @@
+// import { NeedAuth } from '@/common/api-public.decorator';
+import { IS_PUBLIC_KEY } from 'src/common/decorators/public.decorator';
+import {
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(private reflector: Reflector) {
+    super();
+  }
+  canActivate(context: ExecutionContext) {
+    // Add your custom authentication logic here
+    // for example, call super.logIn(request) to establish a session.
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+    return super.canActivate(context);
+  }
+
+  handleRequest(err, user, info) {
+    // Add debugging to see what's happening during authentication
+    console.log('JWT Auth Guard - handleRequest:');
+    console.log('Error:', err);
+    console.log('User:', user);
+    console.log('Info:', info);
+
+    // You can throw an exception based on either "info" or "err" arguments
+    if (err || !user) {
+      throw err || new UnauthorizedException();
+    }
+    return user;
+  }
+}

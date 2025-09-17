@@ -3,7 +3,10 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
+    "typeCheck": true,
+    "deleteOutDir": true,
     "plugins": ["@nestjs/swagger"],
-    "deleteOutDir": true
+    "assets": ["mail/templates/**/*", "firebase-account-service.json"],
+    "watchAssets": true
   }
 }

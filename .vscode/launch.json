@@ -9,12 +9,7 @@
       "request": "launch",
       "name": "Nest Debug",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-      "run",
-      "start:debug",
-      "--",
-      "--inspect-brk"
-      ],
+      "runtimeArgs": ["run", "start:debug", "--", "--inspect-brk"],
       "console": "integratedTerminal",
       "restart": true,
       "protocol": "auto",

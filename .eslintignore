@@ -1,0 +1,12 @@
+# Ignore vector service files during development
+src/modules/vector/
+src/modules/songs/songs.service.ts
+src/modules/songs/songs.controller.ts
+
+# Ignore test files
+**/*.spec.ts
+**/*.test.ts
+
+# Ignore build output
+dist/
+node_modules/

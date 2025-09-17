@@ -1,34 +1,79 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+  Put,
+  HttpCode,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
+import {
+  CodeActivateDto,
+  CreateAuthDto,
+  ResendCodeDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/create-auth.dto';
+import { LocalAuthGuard } from './passport/local-auth.guard';
+import { ApiBody, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { Public } from '@/common/decorators/public.decorator';
+import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post()
-  create(@Body() createAuthDto: CreateAuthDto) {
-    return this.authService.create(createAuthDto);
+  @Post('/login')
+  @UseGuards(LocalAuthGuard)
+  @ApiBody({
+    type: CreateAuthDto,
+  })
+  @Public()
+  async login(@Request() req) {
+    return this.authService.login(req.user);
   }
 
-  @Get()
-  findAll() {
-    return this.authService.findAll();
+  @Post('/register')
+  @Public()
+  async register(@Body() registerDto: CreateAuthDto) {
+    return this.authService.register(registerDto);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.authService.findOne(+id);
+  @Put('/verify')
+  @Public()
+  @ResponseMessage('Account activated successfully')
+  checkCode(@Body() codeActivateDto: CodeActivateDto) {
+    return this.authService.checkCode(codeActivateDto);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.authService.update(+id, updateAuthDto);
+  @Put('/resend-verify')
+  @Public()
+  @ResponseMessage('Verification code resent successfully')
+  resendCode(@Body() resendCodeDto: ResendCodeDto) {
+    return this.authService.resendCode(resendCodeDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.authService.remove(+id);
+  @Post('/forgot-password')
+  @Public()
+  @ResponseMessage('Password reset instructions sent')
+  forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Put('/reset-password')
+  @Public()
+  @ResponseMessage('Password reset successfully')
+  resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Get('/profile')
+  getProfile(@Request() req) {
+    return req.user;
   }
 }
